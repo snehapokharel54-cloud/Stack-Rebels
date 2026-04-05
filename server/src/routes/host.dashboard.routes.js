@@ -2,6 +2,6 @@ import express from "express";
 
 const router = express.Router();
 
-// Host authentication routes
+// Host dashboard routes
 
 export default router;
