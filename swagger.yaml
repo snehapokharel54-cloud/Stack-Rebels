@@ -1,0 +1,899 @@
+openapi: 3.0.0
+info:
+  title: Grihastha Host Dashboard API
+  description: Complete REST API endpoints for Host Dashboard functionality including listings, bookings, stats, earnings, and profile management
+  version: 1.0.0
+servers:
+  - url: http://localhost:5001
+    description: Development Server
+
+tags:
+  - name: Host Dashboard
+    description: Host dashboard overview and statistics
+  - name: Host Listings
+    description: Manage host listings (create, update, delete, publish)
+  - name: Host Bookings
+    description: Manage and view host bookings
+  - name: Host Profile
+    description: Host profile management
+  - name: Host Earnings
+    description: Host revenue and earnings tracking
+  - name: Host Analytics
+    description: Listing analytics and insights
+
+paths:
+  /v1/host/stats:
+    get:
+      summary: Get Host Dashboard Statistics
+      description: Retrieve overall statistics for the host dashboard including total listings, published count, and earnings summary
+      tags:
+        - Host Dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      total_listings:
+                        type: integer
+                        example: 5
+                      published_listings:
+                        type: integer
+                        example: 3
+                      draft_listings:
+                        type: integer
+                        example: 2
+                      total_bookings:
+                        type: integer
+                        example: 12
+                      monthly_earnings:
+                        type: number
+                        format: float
+                        example: 15000
+        '401':
+          description: Unauthorized - Invalid or missing token
+        '500':
+          description: Internal server error
+
+  /v1/host/dashboard:
+    get:
+      summary: Get Complete Host Dashboard
+      description: Retrieve comprehensive dashboard data including stats, recent bookings, and monthly earnings
+      tags:
+        - Host Dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      stats:
+                        type: object
+                        properties:
+                          total_listings:
+                            type: integer
+                            example: 5
+                          published_listings:
+                            type: integer
+                            example: 3
+                          draft_listings:
+                            type: integer
+                            example: 2
+                      monthly_earnings:
+                        type: number
+                        format: float
+                        example: 15000
+                      recent_bookings:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            guest_name:
+                              type: string
+                            check_in:
+                              type: string
+                              format: date
+                            check_out:
+                              type: string
+                              format: date
+                            status:
+                              type: string
+                              enum: ['pending', 'confirmed', 'cancelled']
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /v1/listings/host/my-listings:
+    get:
+      summary: Get All Host Listings
+      description: Retrieve all listings created by the authenticated host with optional status filtering
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter listings by status (DRAFT, PUBLISHED, VERIFYING)
+          schema:
+            type: string
+            enum: ['DRAFT', 'PUBLISHED', 'VERIFYING']
+      responses:
+        '200':
+          description: Listings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          example: "550e8400-e29b-41d4-a716-446655440000"
+                        title:
+                          type: string
+                          example: "Cozy Apartment in Downtown"
+                        status:
+                          type: string
+                          enum: ['DRAFT', 'PUBLISHED', 'VERIFYING']
+                          example: "PUBLISHED"
+                        category:
+                          type: string
+                          example: "apartment"
+                        address:
+                          type: string
+                          example: "123 Main Street, Kathmandu"
+                        price_per_night:
+                          type: number
+                          format: float
+                          example: 100
+                        description:
+                          type: string
+                          example: "Beautiful apartment with modern amenities"
+                        photos:
+                          type: array
+                          items:
+                            type: string
+                          example: ["url1", "url2"]
+                        created_at:
+                          type: string
+                          format: date-time
+                        updated_at:
+                          type: string
+                          format: date-time
+                  count:
+                    type: integer
+                    example: 5
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /v1/listings:
+    post:
+      summary: Create New Listing (Draft)
+      description: Create a new blank listing in DRAFT status that can be filled in step-by-step
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Listing created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Listing created successfully."
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      host_id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: "DRAFT"
+                      created_at:
+                        type: string
+                        format: date-time
+        '401':
+          description: Unauthorized - Not a host
+        '403':
+          description: Forbidden - Only hosts can create listings
+        '500':
+          description: Internal server error
+
+  /v1/listings/{id}:
+    get:
+      summary: Get Listing Details
+      description: Retrieve detailed information for a specific listing. Hosts can view their own drafts, anyone can view published listings.
+      tags:
+        - Host Listings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      category:
+                        type: string
+                      address:
+                        type: string
+                      price_per_night:
+                        type: number
+                      status:
+                        type: string
+        '403':
+          description: Forbidden - Cannot access draft listings of other hosts
+        '404':
+          description: Listing not found
+
+    patch:
+      summary: Update Listing
+      description: Update listing information (multi-step form compatible). Only draft listings can be fully updated.
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  example: "Beautiful Modern Apartment"
+                description:
+                  type: string
+                category:
+                  type: string
+                  example: "apartment"
+                address:
+                  type: string
+                price_per_night:
+                  type: number
+                bedrooms:
+                  type: integer
+                bathrooms:
+                  type: integer
+                max_guests:
+                  type: integer
+                amenities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Listing updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only host can update their own listing
+        '404':
+          description: Listing not found
+        '400':
+          description: Cannot update published listings
+
+    delete:
+      summary: Delete Draft Listing
+      description: Delete a listing. Only DRAFT status listings can be deleted. Published listings must be unpublished first.
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Listing deleted successfully."
+        '400':
+          description: Cannot delete published listings
+        '403':
+          description: Only host can delete their own listing
+        '404':
+          description: Listing not found
+
+  /v1/listings/{id}/photos:
+    post:
+      summary: Upload Listing Photos
+      description: Upload photos for a listing to Cloudinary. Supports multiple file uploads.
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Photos uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      photos:
+                        type: array
+                        items:
+                          type: string
+                          example: "https://cloudinary.com/image.jpg"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only host can upload photos
+        '404':
+          description: Listing not found
+
+  /v1/listings/{id}/publish:
+    post:
+      summary: Publish Listing
+      description: Publish a draft listing to make it visible to guests. All required fields must be filled.
+      tags:
+        - Host Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Listing published successfully."
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: "PUBLISHED"
+        '400':
+          description: Listing is incomplete or invalid
+        '401':
+          description: Unauthorized
+        '404':
+          description: Listing not found
+
+  /v1/host/bookings:
+    get:
+      summary: Get Host Bookings
+      description: Retrieve all bookings for the host's listings with optional status filtering and pagination
+      tags:
+        - Host Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by booking status
+          schema:
+            type: string
+            enum: ['pending', 'confirmed', 'cancelled', 'completed']
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            example: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            example: 0
+      responses:
+        '200':
+          description: Bookings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        guest_name:
+                          type: string
+                          example: "John Doe"
+                        guest_email:
+                          type: string
+                          format: email
+                        listing_id:
+                          type: string
+                          format: uuid
+                        check_in:
+                          type: string
+                          format: date
+                          example: "2024-04-10"
+                        check_out:
+                          type: string
+                          format: date
+                          example: "2024-04-15"
+                        nights:
+                          type: integer
+                          example: 5
+                        status:
+                          type: string
+                          enum: ['pending', 'confirmed', 'cancelled', 'completed']
+                        category:
+                          type: string
+                        address:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Unauthorized
+        '500':
+          description: Bookings table not available
+
+  /v1/host/earnings:
+    get:
+      summary: Get Host Earnings
+      description: Retrieve total earnings and monthly breakdown for the host
+      tags:
+        - Host Earnings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Earnings data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      total_earnings:
+                        type: number
+                        format: float
+                        example: 45000
+                      monthly_breakdown:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            month:
+                              type: string
+                              format: date
+                              example: "2024-04-01"
+                            earnings:
+                              type: number
+                              format: float
+                              example: 15000
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /v1/host/profile:
+    get:
+      summary: Get Host Profile
+      description: Retrieve host profile information including email, name, phone, and account creation date
+      tags:
+        - Host Profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      full_name:
+                        type: string
+                      phone:
+                        type: string
+                      created_at:
+                        type: string
+                        format: date-time
+                      updated_at:
+                        type: string
+                        format: date-time
+        '401':
+          description: Unauthorized
+        '404':
+          description: Host not found
+
+    patch:
+      summary: Update Host Profile
+      description: Update host profile information
+      tags:
+        - Host Profile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                  example: "Jane Smith"
+                phone:
+                  type: string
+                  example: "9800000001"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Profile updated successfully"
+                  data:
+                    type: object
+        '401':
+          description: Unauthorized
+        '404':
+          description: Host not found
+
+  /v1/host/listings/{id}/analytics:
+    get:
+      summary: Get Listing Analytics
+      description: Retrieve analytics and insights for a specific listing including views, bookings, and revenue
+      tags:
+        - Host Analytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      listing_id:
+                        type: string
+                        format: uuid
+                      views:
+                        type: integer
+                        example: 150
+                      bookings:
+                        type: integer
+                        example: 8
+                      revenue:
+                        type: number
+                        format: float
+                        example: 8000
+                      occupancy_rate:
+                        type: number
+                        format: float
+                        example: 85.5
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only listing owner can view analytics
+
+  /v1/bookings/{id}/accept:
+    patch:
+      summary: Accept Booking Request
+      description: Accept a pending booking request from a guest (host action)
+      tags:
+        - Host Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Booking accepted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "confirmed"
+                  message:
+                    type: string
+                    example: "Booking confirmed."
+        '400':
+          description: Unable to confirm booking
+        '401':
+          description: Unauthorized
+
+  /v1/bookings/{id}/decline:
+    patch:
+      summary: Decline Booking Request
+      description: Decline a pending booking request from a guest (host action)
+      tags:
+        - Host Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: "Dates not available"
+      responses:
+        '200':
+          description: Booking declined successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "cancelled"
+                  message:
+                    type: string
+        '400':
+          description: Unable to decline booking
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT token obtained from login endpoint. Format: Authorization: Bearer <token>"
+
+  schemas:
+    Listing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        host_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: ['DRAFT', 'PUBLISHED', 'VERIFYING']
+        price_per_night:
+          type: number
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        guest_id:
+          type: string
+          format: uuid
+        check_in:
+          type: string
+          format: date
+        check_out:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: ['pending', 'confirmed', 'cancelled']
+
+    HostProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
