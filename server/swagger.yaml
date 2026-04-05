@@ -1,0 +1,320 @@
+openapi: 3.0.0
+info:
+  title: Grihastha API Documentation
+  description: Complete REST API documentation for the Grihastha Property Rental Platform. Exposes endpoints for Users, Hosts, and Admins.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5001
+    description: Development Server
+paths:
+  /v1/auth/user/signup:
+    post:
+      summary: Register a new user
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - full_name
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                full_name:
+                  type: string
+                  example: John Doe
+                password:
+                  type: string
+                  example: Password123!
+                phone:
+                  type: string
+                  example: "9800000000"
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Validation error
+        '409':
+          description: Email already in use
+
+  /v1/auth/user/verify-email:
+    post:
+      summary: Verify user email with OTP
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email successfully verified
+        '400':
+          description: Invalid or expired OTP
+
+  /v1/auth/user/login:
+    post:
+      summary: Login an existing user
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: Password123!
+      responses:
+        '200':
+          description: Login successful (returns JWT)
+        '401':
+          description: Invalid credentials
+
+  /v1/auth/user/forgot-password:
+    post:
+      summary: Request password reset link
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Password reset link sent (if account exists)
+
+  /v1/auth/user/reset-password:
+    post:
+      summary: Reset password using 64-char token
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  example: "e37e0cb0cdc28a53796b8ea3d5b9855d1c2fbacecca413546da31e814aeda0ec"
+                password:
+                  type: string
+                  example: NewPassword123!
+      responses:
+        '200':
+          description: Password successfully reset
+        '400':
+          description: Invalid or expired reset token
+
+  /v1/auth/host/signup:
+    post:
+      summary: Register a new host
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - full_name
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                full_name:
+                  type: string
+                  example: Jane Doe
+                password:
+                  type: string
+                  example: Password123!
+                phone:
+                  type: string
+                  example: "9800000000"
+      responses:
+        '201':
+          description: Host registered successfully
+        '400':
+          description: Validation error
+        '409':
+          description: Email already in use
+
+  /v1/auth/host/verify-email:
+    post:
+      summary: Verify host email with OTP
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email successfully verified
+        '400':
+          description: Invalid or expired OTP
+
+  /v1/auth/host/login:
+    post:
+      summary: Login an existing host
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                password:
+                  type: string
+                  example: Password123!
+      responses:
+        '200':
+          description: Login successful (returns JWT)
+        '401':
+          description: Invalid credentials
+
+  /v1/auth/host/forgot-password:
+    post:
+      summary: Request password reset link
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+      responses:
+        '200':
+          description: Password reset link sent (if account exists)
+
+  /v1/auth/host/reset-password:
+    post:
+      summary: Reset password using 64-char token
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  example: "e37e0cb0cdc28a53796b8ea3d5b9855d1c2fbacecca413546da31e814aeda0ec"
+                password:
+                  type: string
+                  example: NewPassword123!
+      responses:
+        '200':
+          description: Password successfully reset
+        '400':
+          description: Invalid or expired reset token
+
+  /v1/auth/admin/login:
+    post:
+      summary: Secure Admin panel login
+      tags:
+        - Admin Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@grihastha.com
+                password:
+                  type: string
+                  example: SecureAdminPass1!
+      responses:
+        '200':
+          description: Admin login successful (returns JWT)
+        '401':
+          description: Invalid credentials or insufficient privileges
