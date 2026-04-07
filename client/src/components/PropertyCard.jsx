@@ -2,19 +2,36 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FiHeart } from 'react-icons/fi'
 import { FaHeart, FaStar } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+import { useAppData } from '../context/AppDataContext'
+
+const CATEGORY_BADGE = {
+  house: { label: 'House', color: '#10b981', bg: '#ecfdf5' },
+  room: { label: 'Room', color: '#6366f1', bg: '#eef2ff' },
+  apartment: { label: 'Apartment', color: '#f59e0b', bg: '#fffbeb' },
+  building: { label: 'Building', color: '#ef4444', bg: '#fef2f2' },
+}
 
 export default function PropertyCard({ listing, index = 0 }) {
-  const [wishlisted, setWishlisted] = useState(false)
+  const { isWishlisted, toggleWishlist } = useAppData()
   const [imgLoaded, setImgLoaded] = useState(false)
-  const { title, location, price, rating, reviews, image, tag } = listing
+  const navigate = useNavigate()
+  const { title, location, price, rating, reviews, image, tag, category, bedrooms, maxGuests } = listing
+  const wishlisted = isWishlisted(listing.id)
+  const catBadge = CATEGORY_BADGE[category]
+
+  const handleCardClick = () => {
+    navigate(`/property/${listing.id}`)
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.07, ease: 'easeOut' }}
+      transition={{ duration: 0.4, delay: index * 0.05, ease: 'easeOut' }}
       whileHover={{ y: -6 }}
-      style={{ position: 'relative', flexShrink: 0, width: 280, cursor: 'pointer' }}
+      onClick={handleCardClick}
+      style={{ position: 'relative', cursor: 'pointer', width: '100%' }}
     >
       {/* Image */}
       <div style={{ position: 'relative', borderRadius: 18, overflow: 'hidden', aspectRatio: '4/3', background: '#f3f4f6' }}>
@@ -39,8 +56,8 @@ export default function PropertyCard({ listing, index = 0 }) {
         {/* Wishlist */}
         <button
           id={`wishlist-${listing.id}`}
-          onClick={e => { e.stopPropagation(); setWishlisted(w => !w) }}
-          style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)', transition: 'transform 0.2s', flexShrink: 0 }}
+          onClick={e => { e.stopPropagation(); toggleWishlist(listing.id) }}
+          style={{ position: 'absolute', top: 12, right: 12, background: wishlisted ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)', transition: 'all 0.2s', flexShrink: 0 }}
           onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
           onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
           aria-label="Wishlist"
@@ -50,6 +67,13 @@ export default function PropertyCard({ listing, index = 0 }) {
             : <FiHeart style={{ color: '#fff', fontSize: 16, strokeWidth: 2.5 }} />
           }
         </button>
+
+        {/* Category badge */}
+        {catBadge && (
+          <div style={{ position: 'absolute', bottom: 12, left: 12, background: catBadge.bg, color: catBadge.color, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999 }}>
+            {catBadge.label}
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -60,20 +84,23 @@ export default function PropertyCard({ listing, index = 0 }) {
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
             <FaStar style={{ color: '#f59e0b', fontSize: 12 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{rating}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{rating || 'New'}</span>
           </div>
         </div>
-        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 3 }}>{location}</p>
+        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>{location}</p>
+        {(bedrooms || maxGuests) && (
+          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            {bedrooms && `${bedrooms} bed${bedrooms > 1 ? 's' : ''}`}{bedrooms && maxGuests && ' · '}{maxGuests && `${maxGuests} guests`}
+          </p>
+        )}
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 4 }}>
           <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, color: '#111827' }}>NPR {price.toLocaleString()}</span>
           <span style={{ fontSize: 12, color: '#9ca3af' }}>/ night</span>
         </div>
-        <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{reviews} reviews</p>
+        {reviews > 0 && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{reviews} reviews</p>}
       </div>
 
-      <style>{`
-        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-      `}</style>
+      <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
     </motion.div>
   )
 }
