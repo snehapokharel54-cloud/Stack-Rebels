@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiHome, FiSearch, FiX, FiSliders } from 'react-icons/fi'
+import { FiHome, FiSliders } from 'react-icons/fi'
 import { MdOutlineApartment, MdOutlineMeetingRoom, MdOutlineApartment as MdBuilding } from 'react-icons/md'
 import { FaBuilding } from 'react-icons/fa'
 import Navbar from '../components/Navbar'
@@ -19,12 +19,6 @@ const BANNER_STATS = [
   { value: '50K+', label: 'Properties' },
   { value: '200K+', label: 'Happy Guests' },
   { value: '4.9★', label: 'Avg Rating' },
-]
-
-const NEPAL_LOCATIONS = [
-  'Thamel, Kathmandu', 'Patan Durbar Square', 'Budhanilkantha', 'Nagarkot',
-  'Pokhara', 'Fewa Lake', 'Chitwan', 'Bandipur', 'Bhaktapur', 'Lalitpur',
-  'Maharajgunj', 'Jhamsikhel', 'Pulchowk', 'Sauraha',
 ]
 
 const SKELETON_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -51,13 +45,8 @@ export default function UserHome() {
     priceRange, setPriceRange,
   } = useAppData()
 
-  const [localSearch, setLocalSearch] = useState(searchQuery)
-  const [suggestions, setSuggestions] = useState([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [loading, setLoading] = useState(true)
-  const debounceRef = useRef(null)
-  const searchRef = useRef(null)
 
   // Simulate initial load
   useEffect(() => {
@@ -65,34 +54,8 @@ export default function UserHome() {
     return () => clearTimeout(t)
   }, [])
 
-  // Debounced search with AJAX-like suggestions
-  const handleSearchInput = useCallback((val) => {
-    setLocalSearch(val)
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setSearchQuery(val)
-      if (val.trim().length > 0) {
-        const filtered = NEPAL_LOCATIONS.filter(l => l.toLowerCase().includes(val.toLowerCase()))
-        setSuggestions(filtered.slice(0, 5))
-        setShowSuggestions(filtered.length > 0)
-      } else {
-        setSuggestions([])
-        setShowSuggestions(false)
-      }
-    }, 300)
-  }, [setSearchQuery])
-
-  const selectSuggestion = (loc) => {
-    setLocalSearch(loc)
-    setSearchQuery(loc)
-    setShowSuggestions(false)
-  }
-
   const clearSearch = () => {
-    setLocalSearch('')
     setSearchQuery('')
-    setSuggestions([])
-    setShowSuggestions(false)
   }
 
   return (
@@ -145,7 +108,7 @@ export default function UserHome() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 32 }}>
               <div>
                 <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 999, marginBottom: 16 }}>
-                  ✨ Discover Nepal
+                  Discover Nepal
                 </span>
                 <h2 style={{ fontFamily: "'Poppins', sans-serif", color: '#fff', fontSize: 'clamp(22px, 4vw, 36px)', fontWeight: 900, lineHeight: 1.15, marginBottom: 10 }}>
                   Find your next<br />perfect stay
@@ -153,54 +116,6 @@ export default function UserHome() {
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, maxWidth: 320, lineHeight: 1.6, marginBottom: 28 }}>
                   From mountain retreats to lakefront villas — explore Nepal's finest stays.
                 </p>
-
-                {/* Inline search bar */}
-                <div ref={searchRef} style={{ position: 'relative', maxWidth: 440 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.97)', borderRadius: 16, padding: '4px 6px 4px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', gap: 8 }}>
-                    <FiSearch style={{ color: '#6b7280', flexShrink: 0 }} size={18} />
-                    <input
-                      id="hero-search-input"
-                      type="text"
-                      value={localSearch}
-                      onChange={e => handleSearchInput(e.target.value)}
-                      onFocus={() => localSearch.length > 0 && setShowSuggestions(suggestions.length > 0)}
-                      placeholder="Search location or property..."
-                      style={{ flex: 1, border: 'none', outline: 'none', fontSize: 14, color: '#111827', background: 'transparent', paddingTop: 8, paddingBottom: 8, fontFamily: "'Open Sans', sans-serif" }}
-                    />
-                    {localSearch && (
-                      <button onClick={clearSearch} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, display: 'flex' }}>
-                        <FiX size={16} />
-                      </button>
-                    )}
-                    <motion.button
-                      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                      style={{ padding: '9px 20px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, fontFamily: "'Poppins', sans-serif" }}
-                    >
-                      Search
-                    </motion.button>
-                  </div>
-
-                  {/* Suggestions dropdown */}
-                  <AnimatePresence>
-                    {showSuggestions && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                        style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', overflow: 'hidden', marginTop: 6, zIndex: 100 }}
-                      >
-                        {suggestions.map(s => (
-                          <button key={s} onClick={() => selectSuggestion(s)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 16px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151', textAlign: 'left', transition: 'background 0.15s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                          >
-                            <FiSearch size={13} style={{ color: '#9ca3af' }} />
-                            {s}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 32 }}>

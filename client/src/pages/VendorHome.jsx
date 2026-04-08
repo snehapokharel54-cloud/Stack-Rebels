@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
-  FiHome, FiPlus, FiList, FiCalendar, FiBarChart2, FiUser, FiLogOut,
+  FiHome, FiPlus, FiList, FiCalendar, FiUser, FiLogOut,
   FiMenu, FiX, FiEdit2, FiTrash2, FiEye, FiCheck, FiClock, FiTrendingUp,
   FiDollarSign, FiAlertCircle, FiUpload, FiStar,
 } from 'react-icons/fi'
@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { id: 'add', label: 'Add Property', icon: FiPlus },
   { id: 'listings', label: 'My Listings', icon: FiList },
   { id: 'bookings', label: 'Bookings', icon: FiCalendar },
-  { id: 'analytics', label: 'Analytics', icon: FiBarChart2 },
   { id: 'profile', label: 'Profile', icon: FiUser },
 ]
 
@@ -94,13 +93,13 @@ function DashboardOverview({ user, analytics, setSection }) {
     <div>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 26, color: '#0f172a', marginBottom: 4 }}>
-          Welcome back, {user?.name?.split(' ')[0]} 👋
+          Welcome back, {user?.name?.split(' ')[0]}
         </h2>
         <p style={{ color: '#6b7280', fontSize: 14 }}>Here's how your properties are performing.</p>
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 28 }}>
+      <div className="vendor-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
         <StatCard icon={FiHome} label="Total Listings" value={totalListings} sub="Active properties" color="#093880" bg="#eff6ff" />
         <StatCard icon={FiCalendar} label="Total Bookings" value={totalBookings} sub="Confirmed stays" color="#10b981" bg="#ecfdf5" />
         <StatCard icon={FiDollarSign} label="Total Earnings" value={`NPR ${totalEarnings.toLocaleString()}`} sub="All-time revenue" color="#f59e0b" bg="#fffbeb" />
@@ -108,7 +107,7 @@ function DashboardOverview({ user, analytics, setSection }) {
       </div>
 
       {/* Charts area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 20 }}>
         <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0' }}>
           <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>Monthly Revenue (NPR)</h3>
           <BarChart data={monthlyData} field="revenue" color="#093880" label="Revenue per month" />
@@ -120,30 +119,32 @@ function DashboardOverview({ user, analytics, setSection }) {
       </div>
 
       {/* Insights row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'stretch' }}>
         {topProperty ? (
-          <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', borderRadius: 20, padding: '24px', color: '#fff' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.7, marginBottom: 8 }}>🏆 Top Performer</p>
+          <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', borderRadius: 20, padding: '24px', color: '#fff', height: '100%' }}>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.85, marginBottom: 8 }}>
+              <FiStar size={12} /> Top Performer
+            </p>
             <h4 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{topProperty.title}</h4>
             <p style={{ fontSize: 12, opacity: 0.75, marginBottom: 12 }}>{topProperty.location}</p>
             <p style={{ fontSize: 13, fontWeight: 700 }}>NPR {topProperty.price?.toLocaleString()} / night</p>
           </div>
         ) : (
-          <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🏠</div>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', height: '100%' }}>
+            <div style={{ marginBottom: 8 }}><FiHome size={36} style={{ color: '#9ca3af' }} /></div>
             <p style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 4 }}>No top performer yet</p>
             <p style={{ fontSize: 12, color: '#6b7280' }}>Add properties to see insights</p>
           </div>
         )}
 
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', height: '100%', display: 'flex', flexDirection: 'column' }}>
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#9ca3af', marginBottom: 12 }}>Quick Actions</p>
           {[
             { label: '+ Add New Property', action: () => setSection('add'), style: { background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff' } },
-            { label: '📋 View All Bookings', action: () => setSection('bookings'), style: { background: '#f9fafb', color: '#374151', border: '1.5px solid #e5e7eb' } },
+            { label: 'View All Bookings', action: () => setSection('bookings'), style: { background: '#f9fafb', color: '#374151', border: '1.5px solid #e5e7eb' } },
           ].map((btn, i) => (
             <motion.button key={i} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={btn.action}
-              style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 12, border: btn.style.border || 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 10, fontFamily: "'Poppins', sans-serif", ...btn.style }}>
+              style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 12, border: btn.style.border || 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: i === 1 ? 0 : 10, fontFamily: "'Poppins', sans-serif", ...btn.style }}>
               {btn.label}
             </motion.button>
           ))}
@@ -272,7 +273,7 @@ function AddPropertyForm({ user, onSuccess }) {
 
         <motion.button id="submit-property-btn" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={submitting}
           style={{ padding: '14px 36px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(9,56,128,0.3)', fontFamily: "'Poppins', sans-serif", opacity: submitting ? 0.8 : 1 }}>
-          {submitting ? '⏳ Submitting...' : '🏠 List Property'}
+          {submitting ? 'Submitting...' : 'List Property'}
         </motion.button>
       </form>
     </div>
@@ -307,7 +308,7 @@ function MyListings({ user, setSection }) {
 
       {props.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-          <div style={{ fontSize: 64, marginBottom: 16 }}>🏠</div>
+          <div style={{ marginBottom: 16 }}><FiHome size={52} style={{ color: '#9ca3af' }} /></div>
           <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 20, color: '#111827', marginBottom: 8 }}>No properties yet</h3>
           <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>List your first property to start earning!</p>
           <button onClick={() => setSection('add')} style={{ padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
@@ -368,7 +369,7 @@ function MyListings({ user, setSection }) {
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               style={{ background: '#fff', borderRadius: 20, padding: '32px', maxWidth: 380, width: '100%', textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🗑️</div>
+              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><FiAlertCircle size={42} style={{ color: '#dc2626' }} /></div>
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: '#0f172a', marginBottom: 8 }}>Delete Property?</h3>
               <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>This action cannot be undone. All bookings for this property will remain in records.</p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
@@ -400,7 +401,7 @@ function HostBookingsSection({ user }) {
 
       {bookings.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-          <div style={{ fontSize: 64, marginBottom: 16 }}>📋</div>
+          <div style={{ marginBottom: 16 }}><FiCalendar size={52} style={{ color: '#9ca3af' }} /></div>
           <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 20, color: '#111827', marginBottom: 8 }}>No bookings yet</h3>
           <p style={{ color: '#6b7280', fontSize: 14 }}>Bookings from guests will appear here once they book your properties.</p>
         </div>
@@ -422,100 +423,11 @@ function HostBookingsSection({ user }) {
                   <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 14, color: '#093880' }}>NPR {b.totalPrice?.toLocaleString()}</p>
                 </div>
                 <span style={{ background: b.status === 'confirmed' ? '#ecfdf5' : '#fef2f2', color: b.status === 'confirmed' ? '#16a34a' : '#dc2626', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>
-                  {b.status === 'confirmed' ? '✓ Confirmed' : '✗ Cancelled'}
+                  {b.status === 'confirmed' ? 'Confirmed' : 'Cancelled'}
                 </span>
               </div>
             </motion.div>
           ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ──────────────────────────────────────────────────
-// SECTION: Analytics
-// ──────────────────────────────────────────────────
-function AnalyticsSection({ user, analytics }) {
-  const { totalListings, totalBookings, totalEarnings, occupancyRate, monthlyData, topProperty } = analytics
-
-  const conversionRate = totalListings > 0 ? Math.min(100, Math.round((totalBookings / Math.max(1, totalListings * 10)) * 100)) : 0
-
-  return (
-    <div>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', marginBottom: 6 }}>Analytics</h2>
-      <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 28 }}>Deep insights into your property performance.</p>
-
-      {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginBottom: 28 }}>
-        {[
-          { label: 'Total Listings', value: totalListings, icon: '🏠', color: '#eff6ff', text: '#093880' },
-          { label: 'Total Bookings', value: totalBookings, icon: '📅', color: '#ecfdf5', text: '#15803d' },
-          { label: 'Total Earnings', value: `NPR ${totalEarnings.toLocaleString()}`, icon: '💰', color: '#fffbeb', text: '#b45309' },
-          { label: 'Occupancy Rate', value: `${occupancyRate}%`, icon: '📊', color: '#eef2ff', text: '#4f46e5' },
-          { label: 'Conversion Rate', value: `${conversionRate}%`, icon: '🎯', color: '#fdf4ff', text: '#7c3aed' },
-        ].map(s => (
-          <div key={s.label} style={{ background: s.color, borderRadius: 18, padding: '20px 18px' }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>{s.icon}</div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{s.label}</p>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 20, color: s.text }}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>📈 Monthly Revenue (NPR)</h3>
-          <BarChart data={monthlyData} field="revenue" color="#093880" label="Revenue" />
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-            {monthlyData.map((d, i) => (
-              <div key={i} style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: 10, color: '#374151', fontWeight: 700 }}>NPR {d.revenue.toLocaleString()}</p>
-                <p style={{ fontSize: 9, color: '#9ca3af' }}>{d.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
-          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>📅 Bookings per Month</h3>
-          <BarChart data={monthlyData} field="bookings" color="#10b981" label="Bookings" />
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-            {monthlyData.map((d, i) => (
-              <div key={i} style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: 10, color: '#374151', fontWeight: 700 }}>{d.bookings} bk</p>
-                <p style={{ fontSize: 9, color: '#9ca3af' }}>{d.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Occupancy gauge */}
-      <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', marginBottom: 20 }}>
-        <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 16 }}>Occupancy Rate</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{ flex: 1, height: 16, background: '#f3f4f6', borderRadius: 999, overflow: 'hidden' }}>
-            <motion.div initial={{ width: 0 }} animate={{ width: `${occupancyRate}%` }} transition={{ duration: 1, ease: 'easeOut' }}
-              style={{ height: '100%', background: `linear-gradient(90deg, #093880, #63b74e)`, borderRadius: 999 }} />
-          </div>
-          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 20, color: '#0f172a', flexShrink: 0 }}>{occupancyRate}%</span>
-        </div>
-        <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-          Formula: (Total booked days / Total available days × 100)
-        </p>
-      </div>
-
-      {/* Insights */}
-      {topProperty && (
-        <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', borderRadius: 20, padding: '24px', color: '#fff' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.7, marginBottom: 8 }}>🏆 Top Performing Property</p>
-          <h4 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, marginBottom: 4 }}>{topProperty.title}</h4>
-          <p style={{ opacity: 0.75, fontSize: 13, marginBottom: 12 }}>{topProperty.location}</p>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div><p style={{ opacity: 0.7, fontSize: 11 }}>Price</p><p style={{ fontWeight: 700, fontSize: 14 }}>NPR {topProperty.price?.toLocaleString()}/night</p></div>
-            <div><p style={{ opacity: 0.7, fontSize: 11 }}>Category</p><p style={{ fontWeight: 700, fontSize: 14, textTransform: 'capitalize' }}>{topProperty.category}</p></div>
-          </div>
         </div>
       )}
     </div>
@@ -581,7 +493,6 @@ export default function VendorHome() {
       case 'add': return <AddPropertyForm user={user} onSuccess={() => setSection('listings')} />
       case 'listings': return <MyListings user={user} setSection={setSection} />
       case 'bookings': return <HostBookingsSection user={user} />
-      case 'analytics': return <AnalyticsSection user={user} analytics={analytics} />
       case 'profile': return <ProfileSection user={user} onLogout={handleLogout} />
       default: return null
     }
@@ -688,9 +599,9 @@ export default function VendorHome() {
       </AnimatePresence>
 
       {/* Main content */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="vendor-main-content" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxWidth: '100%', overflowX: 'hidden' }}>
         {/* Top bar */}
-        <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1.5px solid #f0f0f0', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
+        <div className="vendor-top-bar" style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1.5px solid #f0f0f0', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={() => setSidebarOpen(o => !o)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
@@ -711,9 +622,9 @@ export default function VendorHome() {
         </div>
 
         {/* Page content */}
-        <div style={{ flex: 1, padding: '32px 32px', overflowY: 'auto' }}>
+        <div className="vendor-page-content" style={{ flex: 1, padding: '32px', overflowY: 'auto', overflowX: 'hidden' }}>
           <AnimatePresence mode="wait">
-            <motion.div key={section} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
+            <motion.div key={section} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} style={{ width: '100%', maxWidth: '100%' }}>
               {renderSection()}
             </motion.div>
           </AnimatePresence>
@@ -721,8 +632,36 @@ export default function VendorHome() {
       </div>
 
       <style>{`
+        .vendor-stats-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        @media (max-width: 1200px) {
+          .vendor-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 640px) {
+          .vendor-stats-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .vendor-page-content {
+            padding: 16px !important;
+          }
+
+          .vendor-top-bar {
+            padding: 0 16px !important;
+          }
+        }
+
         @media (max-width: 768px) {
           .desktop-sidebar { display: none !important; }
+
+          .vendor-page-content {
+            padding: 20px !important;
+          }
         }
       `}</style>
     </div>

@@ -86,7 +86,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center', position: 'relative' }}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span style={{ display: 'inline-block', padding: '6px 16px', borderRadius: 999, background: '#e8f0fe', color: '#093880', fontSize: 13, fontWeight: 700, border: '1px solid #c7d9f9', marginBottom: 28 }}>
-              🏠 Grihastha Online Rental System
+              Grihastha Online Rental System
             </span>
           </motion.div>
 
@@ -111,38 +111,6 @@ export default function LandingPage() {
           >
             Discover handpicked homes, villas & unique stays across Nepal. From city apartments to mountain retreats.
           </motion.p>
-
-          {/* ── SEARCH BAR ── */}
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'stretch', background: '#fff',
-              borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.06)',
-              overflow: 'hidden', maxWidth: 680, width: '100%',
-            }}>
-              <div style={{ flex: 1, padding: '16px 24px', borderRight: '1px solid #f0f0f0', textAlign: 'left' }}>
-                <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', marginBottom: 4 }}>Where</p>
-                <p style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>Kathmandu, Nepal</p>
-              </div>
-              <div style={{ flex: 1, padding: '16px 24px', borderRight: '1px solid #f0f0f0', textAlign: 'left' }}>
-                <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', marginBottom: 4 }}>When</p>
-                <p style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>Apr 10 – Apr 15</p>
-              </div>
-              <div style={{ flex: 1, padding: '16px 24px', textAlign: 'left' }}>
-                <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', marginBottom: 4 }}>Who</p>
-                <p style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>2 guests</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px 10px 8px' }}>
-                <motion.button
-                  id="hero-search-btn"
-                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate('/auth?mode=login')}
-                  style={{ width: 52, height: 52, borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(9,56,128,0.4)' }}
-                >
-                  <FiSearch size={20} />
-                </motion.button>
-              </div>
-            </div>
-          </motion.div>
 
           {/* ── STATS ── */}
           <motion.div
