@@ -6,7 +6,7 @@ import { useAppData } from '../context/AppDataContext'
 import { useNavigate } from 'react-router-dom'
 
 const NEPAL_LOCATIONS = [
-  'Thamel, Kathmandu', 'Patan Durbar Square', 'Budhanilkantha', 'Nagarkot',
+  'Thamel, Kathmandu', 'Patan Durbar Square', 'Diktel', 'Nagarkot',
   'Pokhara', 'Fewa Lake', 'Chitwan', 'Bandipur', 'Bhaktapur', 'Lalitpur',
 ]
 
