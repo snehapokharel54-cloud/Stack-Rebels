@@ -7,6 +7,7 @@ import { MdAir, MdKitchen, MdLocalLaundryService, MdTv } from 'react-icons/md'
 import Navbar from '../components/Navbar'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const AMENITY_ICONS = {
   'WiFi': FaWifi,
@@ -34,6 +35,7 @@ export default function PropertyDetail() {
   const navigate = useNavigate()
   const { allProperties, isWishlisted, toggleWishlist, trackView, createBooking } = useAppData()
   const { user } = useAuth()
+  const { showToast } = useToast()
 
   const property = allProperties.find(p => String(p.id) === String(id))
   const [activeImg, setActiveImg] = useState(0)
@@ -60,8 +62,10 @@ export default function PropertyDetail() {
       <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
         <Navbar />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '120px 24px' }}>
-          <div style={{ fontSize: 64 }}>🏚️</div>
-          <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 24, fontWeight: 800, marginTop: 16, color: '#111827' }}>Property Not Found</h2>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <FiHome size={32} style={{ color: '#9ca3af' }} />
+          </div>
+          <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 24, fontWeight: 800, marginTop: 0, color: '#111827' }}>Property Not Found</h2>
           <p style={{ color: '#6b7280', marginTop: 8 }}>This listing may have been removed or doesn't exist.</p>
           <button onClick={() => navigate('/home')} style={{ marginTop: 24, padding: '12px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
             Browse Properties
@@ -106,6 +110,7 @@ export default function PropertyDetail() {
       setBookingError(result.error)
     } else {
       setBookingSuccess(true)
+      showToast('Booking confirmed! Check your bookings for details.', 'success')
     }
   }
 
@@ -226,7 +231,9 @@ export default function PropertyDetail() {
             <div style={{ marginBottom: 32 }}>
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 18, color: '#0f172a', marginBottom: 16 }}>Location</h3>
               <div style={{ borderRadius: 16, overflow: 'hidden', border: '1.5px solid #e5e7eb', height: 240, background: '#f3f4f6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <div style={{ fontSize: 40 }}>🗺️</div>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FiMapPin size={24} style={{ color: '#093880' }} />
+                </div>
                 <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#374151' }}>{property.location}</p>
                 <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.location + ', Nepal')}`} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: 13, color: '#093880', textDecoration: 'underline', cursor: 'pointer' }}>
@@ -276,7 +283,9 @@ export default function PropertyDetail() {
             >
               {bookingSuccess ? (
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <FiCheck size={28} style={{ color: '#16a34a' }} />
+                  </div>
                   <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: '#16a34a', marginBottom: 8 }}>Booking Confirmed!</h3>
                   <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Your stay at "{property.title}" has been booked successfully.</p>
                   <button onClick={() => navigate('/bookings')}
@@ -380,7 +389,7 @@ export default function PropertyDetail() {
                   {['khalti', 'esewa', 'card'].map(m => (
                     <button key={m} onClick={() => setPaymentMethod(m)}
                       style={{ flex: 1, padding: '12px 8px', borderRadius: 12, border: `2px solid ${paymentMethod === m ? '#093880' : '#e5e7eb'}`, background: paymentMethod === m ? '#f0f5ff' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: paymentMethod === m ? '#093880' : '#6b7280', textTransform: 'capitalize', transition: 'all 0.2s' }}>
-                      {m === 'khalti' ? '💜 Khalti' : m === 'esewa' ? '💚 eSewa' : '💳 Card'}
+                      {m === 'khalti' ? 'Khalti' : m === 'esewa' ? 'eSewa' : 'Card'}
                     </button>
                   ))}
                 </div>
@@ -404,7 +413,7 @@ export default function PropertyDetail() {
                 onClick={handlePaymentConfirm} disabled={isBooking}
                 style={{ width: '100%', padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', opacity: isBooking ? 0.8 : 1, fontFamily: "'Poppins', sans-serif" }}
               >
-                {isBooking ? '⏳ Processing...' : `Pay NPR ${Math.round(totalPrice * 1.1).toLocaleString()}`}
+                {isBooking ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Processing...</> : `Pay NPR ${Math.round(totalPrice * 1.1).toLocaleString()}`}
               </motion.button>
             </motion.div>
           </motion.div>

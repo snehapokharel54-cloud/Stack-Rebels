@@ -4,6 +4,7 @@ import { FiSearch, FiLogOut, FiMenu, FiX, FiBell, FiHeart, FiBookOpen, FiUser } 
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '../context/ToastContext'
 
 const NEPAL_LOCATIONS = [
   'Thamel, Kathmandu', 'Patan Durbar Square', 'Diktel', 'Nagarkot',
@@ -13,6 +14,7 @@ const NEPAL_LOCATIONS = [
 export default function Navbar() {
   const { user, logout } = useAuth()
   const { wishlist, unreadCount, searchQuery, setSearchQuery } = useAppData()
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -22,7 +24,7 @@ export default function Navbar() {
   const debounceRef = useRef(null)
   const profileRef = useRef(null)
 
-  const handleLogout = () => { logout(); navigate('/') }
+  const handleLogout = () => { logout(); showToast('You have been signed out.', 'info'); navigate('/') }
 
   // Close profile dropdown on outside click
   useEffect(() => {

@@ -7,8 +7,10 @@ import {
   FiDollarSign, FiAlertCircle, FiUpload, FiStar,
 } from 'react-icons/fi'
 import { FaStar } from 'react-icons/fa'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
+import { useToast } from '../context/ToastContext'
 
 // ──────────────────────────────────────────────────
 // Sidebar config
@@ -41,26 +43,46 @@ const SAMPLE_IMAGES = [
 ]
 
 // ──────────────────────────────────────────────────
-// Mini bar/line chart using SVG
+// Revenue BarChart using Recharts
 // ──────────────────────────────────────────────────
-function BarChart({ data, field, color = '#093880', label }) {
-  const max = Math.max(...data.map(d => d[field]), 1)
+function RevenueChart({ data }) {
   return (
-    <div>
-      <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <motion.div
-              initial={{ height: 0 }} animate={{ height: `${(d[field] / max) * 80}px` }}
-              transition={{ duration: 0.7, delay: i * 0.08, ease: 'easeOut' }}
-              style={{ width: '100%', background: `linear-gradient(180deg, ${color}, ${color}88)`, borderRadius: '6px 6px 0 0', minHeight: 4 }}
-            />
-            <span style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center' }}>{d.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height={120}>
+      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }} barSize={18}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+        <Tooltip
+          contentStyle={{ borderRadius: 10, border: '1px solid #f0f0f0', fontSize: 12 }}
+          formatter={(v) => [`NPR ${v.toLocaleString()}`, 'Revenue']}
+        />
+        <Bar dataKey="revenue" fill="#093880" radius={[6, 6, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// Bookings AreaChart
+function BookingsChart({ data }) {
+  return (
+    <ResponsiveContainer width="100%" height={120}>
+      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+        <defs>
+          <linearGradient id="bookingsGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#10b981" stopOpacity={0.18} />
+            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip
+          contentStyle={{ borderRadius: 10, border: '1px solid #f0f0f0', fontSize: 12 }}
+          formatter={(v) => [v, 'Bookings']}
+        />
+        <Area type="monotone" dataKey="bookings" stroke="#10b981" strokeWidth={2} fill="url(#bookingsGrad)" />
+      </AreaChart>
+    </ResponsiveContainer>
   )
 }
 
@@ -110,11 +132,11 @@ function DashboardOverview({ user, analytics, setSection }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 20 }}>
         <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0' }}>
           <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>Monthly Revenue (NPR)</h3>
-          <BarChart data={monthlyData} field="revenue" color="#093880" label="Revenue per month" />
+          <RevenueChart data={monthlyData} />
         </div>
         <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0' }}>
           <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>Bookings per Month</h3>
-          <BarChart data={monthlyData} field="bookings" color="#10b981" label="Bookings per month" />
+          <BookingsChart data={monthlyData} />
         </div>
       </div>
 
@@ -159,6 +181,7 @@ function DashboardOverview({ user, analytics, setSection }) {
 // ──────────────────────────────────────────────────
 function AddPropertyForm({ user, onSuccess }) {
   const { addHostProperty } = useAppData()
+  const { showToast } = useToast()
   const [form, setForm] = useState({
     title: '', description: '', price: '', category: 'apartment',
     location: '', amenities: [], maxGuests: 2, bedrooms: 1, bathrooms: 1,
@@ -184,6 +207,7 @@ function AddPropertyForm({ user, onSuccess }) {
     setSubmitting(false)
     if (result.ok) {
       setMsg({ type: 'success', text: 'Property listed successfully! It is now visible to guests.' })
+      showToast('Property listed successfully! Guests can now find it.', 'success')
       setForm({ title: '', description: '', price: '', category: 'apartment', location: '', amenities: [], maxGuests: 2, bedrooms: 1, bathrooms: 1, image: SAMPLE_IMAGES[0], images: [SAMPLE_IMAGES[0]] })
       setTimeout(() => onSuccess?.(), 1500)
     }
@@ -285,13 +309,14 @@ function AddPropertyForm({ user, onSuccess }) {
 // ──────────────────────────────────────────────────
 function MyListings({ user, setSection }) {
   const { getHostProperties, deleteHostProperty, updateHostProperty } = useAppData()
+  const { showToast } = useToast()
   const props = getHostProperties(user.email)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [confirm, setConfirm] = useState(null)
 
   const startEdit = (p) => { setEditingId(p.id); setEditForm({ title: p.title, price: p.price, location: p.location }) }
-  const saveEdit = () => { updateHostProperty(editingId, editForm); setEditingId(null) }
+  const saveEdit = () => { updateHostProperty(editingId, editForm); setEditingId(null); showToast('Property updated successfully.', 'success') }
 
   return (
     <div>
@@ -374,7 +399,7 @@ function MyListings({ user, setSection }) {
               <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>This action cannot be undone. All bookings for this property will remain in records.</p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button onClick={() => setConfirm(null)} style={{ padding: '11px 24px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Cancel</button>
-                <button onClick={() => { deleteHostProperty(confirm); setConfirm(null) }}
+                <button onClick={() => { deleteHostProperty(confirm); setConfirm(null); showToast('Property deleted.', 'warning') }}
                   style={{ padding: '11px 24px', borderRadius: 12, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Delete</button>
               </div>
             </motion.div>

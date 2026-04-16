@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiHome, FiSliders } from 'react-icons/fi'
-import { MdOutlineApartment, MdOutlineMeetingRoom, MdOutlineApartment as MdBuilding } from 'react-icons/md'
+import { FiHome, FiSliders, FiGrid, FiSearch, FiMapPin } from 'react-icons/fi'
+import { MdOutlineApartment, MdOutlineMeetingRoom } from 'react-icons/md'
 import { FaBuilding } from 'react-icons/fa'
+import { LuBedDouble } from 'react-icons/lu'
 import Navbar from '../components/Navbar'
 import PropertyCard from '../components/PropertyCard'
 import { useAppData } from '../context/AppDataContext'
 
 const CATEGORIES = [
-  { label: 'All', id: 'all', icon: '🏠' },
-  { label: 'House', id: 'house', icon: '🏡' },
-  { label: 'Room', id: 'room', icon: '🛏️' },
-  { label: 'Apartment', id: 'apartment', icon: '🏢' },
-  { label: 'Building', id: 'building', icon: '🏗️' },
+  { label: 'All',       id: 'all',       Icon: FiGrid },
+  { label: 'House',     id: 'house',     Icon: FiHome },
+  { label: 'Room',      id: 'room',      Icon: MdOutlineMeetingRoom },
+  { label: 'Apartment', id: 'apartment', Icon: MdOutlineApartment },
+  { label: 'Building',  id: 'building',  Icon: FaBuilding },
 ]
 
 const BANNER_STATS = [
@@ -75,7 +76,7 @@ export default function UserHome() {
                   whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
                   onClick={() => setActiveCategory(cat.id)}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     padding: '8px 20px', borderRadius: 14, border: active ? 'none' : '1.5px solid #e5e7eb',
                     flexShrink: 0, cursor: 'pointer', transition: 'all 0.2s',
                     background: active ? 'linear-gradient(135deg, #093880, #1a56c4)' : '#fff',
@@ -84,7 +85,7 @@ export default function UserHome() {
                     boxShadow: active ? '0 4px 16px rgba(9,56,128,0.25)' : 'none',
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                  <cat.Icon size={17} />
                   <span>{cat.label}</span>
                 </motion.button>
               )
@@ -133,8 +134,8 @@ export default function UserHome() {
         {/* Filter bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>
-              {activeCategory === 'all' ? '🏠 All Properties' : `${CATEGORIES.find(c => c.id === activeCategory)?.icon} ${CATEGORIES.find(c => c.id === activeCategory)?.label}s`}
+            <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {(() => { const cat = CATEGORIES.find(c => c.id === activeCategory); return cat ? <><cat.Icon size={20} />{cat.id === 'all' ? 'All Properties' : `${cat.label}s`}</> : 'All Properties' })()}
             </h2>
             <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
               {filteredProperties.length} {filteredProperties.length === 1 ? 'property' : 'properties'} found
@@ -187,7 +188,9 @@ export default function UserHome() {
         ) : filteredProperties.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ textAlign: 'center', padding: '80px 24px' }}>
-            <div style={{ fontSize: 64, marginBottom: 16 }}>🔍</div>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <FiSearch size={28} style={{ color: '#9ca3af' }} />
+            </div>
             <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 20, color: '#111827', marginBottom: 8 }}>No properties found</h3>
             <p style={{ color: '#6b7280', fontSize: 14 }}>Try adjusting your search or filters</p>
             <button onClick={() => { clearSearch(); setActiveCategory('all'); setPriceRange([0, 15000]) }}
@@ -213,7 +216,7 @@ export default function UserHome() {
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 48px' }}>
               <div>
-                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 6 }}>🗺️ Scenic escapes await</p>
+                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><FiMapPin size={13} /> Scenic escapes await</p>
                 <h3 style={{ fontFamily: "'Poppins', sans-serif", color: '#fff', fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Mountain & Nature Stays</h3>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Explore Nagarkot, Bandipur & beyond</p>
               </div>

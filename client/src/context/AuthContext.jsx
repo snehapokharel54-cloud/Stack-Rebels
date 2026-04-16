@@ -45,7 +45,16 @@ export function AuthProvider({ children }) {
     localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts))
   }, [accounts])
 
-  const signup = ({ name, email, password, role }) => {
+  /**
+   * signup — stores an account with extended profile fields
+   * @param {{ name, email, password, role, phone?, idFile?, propName?, propLocation?, propDesc? }} params
+   */
+  const signup = ({
+    name, email, password, role,
+    phone = '', phoneVerified = false,
+    idVerified = false,
+    propName = '', propLocation = '', propDesc = '',
+  }) => {
     setLoading(true)
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -54,7 +63,7 @@ export function AuthProvider({ children }) {
 
         if (exists) {
           setLoading(false)
-          resolve({ ok: false, error: 'Account already exists. Please log in.' })
+          resolve({ ok: false, error: 'Account already exists with this email.' })
           return
         }
 
@@ -63,6 +72,20 @@ export function AuthProvider({ children }) {
           email: normalizedEmail,
           password,
           role,
+          phone,
+          phoneVerified,
+          idVerified,
+          // host-specific
+          propName,
+          propLocation,
+          propDesc,
+          createdAt: new Date().toISOString(),
+          // verification badges
+          badges: [
+            ...(phoneVerified ? ['phone_verified'] : []),
+            ...(idVerified ? ['id_verified'] : []),
+            ...(role === 'vendor' ? ['host'] : ['guest']),
+          ],
         }
 
         setAccounts((prev) => [...prev, newAccount])
@@ -92,6 +115,12 @@ export function AuthProvider({ children }) {
           email: account.email,
           role: account.role,
           avatar: account.name?.charAt(0)?.toUpperCase(),
+          phone: account.phone || '',
+          phoneVerified: account.phoneVerified || false,
+          idVerified: account.idVerified || false,
+          badges: account.badges || [],
+          propName: account.propName || '',
+          propLocation: account.propLocation || '',
         }
 
         setUser(userData)
@@ -105,10 +134,15 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  /** Update profile fields in-memory and localStorage */
+  const updateUser = (updates) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev)
+  }
+
   const isAuthenticated = !!user
 
   return (
-    <AuthContext.Provider value={{ user, signup, login, logout, loading, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, signup, login, logout, loading, isAuthenticated, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

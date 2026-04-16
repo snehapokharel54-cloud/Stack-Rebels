@@ -30,7 +30,9 @@ export default function WishlistPage() {
         {wishlisted.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             style={{ textAlign: 'center', padding: '80px 24px' }}>
-            <div style={{ fontSize: 72, marginBottom: 20 }}>💔</div>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <FiHeart size={32} style={{ color: '#ef4444' }} />
+            </div>
             <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 22, color: '#111827', marginBottom: 8 }}>No saved properties yet</h2>
             <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 28 }}>Click the heart icon on any property to save it here.</p>
             <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => navigate('/home')}
