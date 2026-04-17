@@ -1,0 +1,2190 @@
+openapi: 3.0.0
+info:
+  title: Grihastha API Documentation
+  description: Complete REST API documentation for the Grihastha Property Rental Platform. Exposes endpoints for Users, Hosts, and Admins.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5001
+    description: Development Server
+paths:
+  /v1/auth/user/signup:
+    post:
+      summary: Register a new user
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - full_name
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                full_name:
+                  type: string
+                  example: John Doe
+                password:
+                  type: string
+                  example: Password123!
+                phone:
+                  type: string
+                  example: "9800000000"
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Validation error
+        '409':
+          description: Email already in use
+
+  /v1/auth/user/verify-email:
+    post:
+      summary: Verify user email with OTP
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email successfully verified
+        '400':
+          description: Invalid or expired OTP
+
+  /v1/auth/user/login:
+    post:
+      summary: Login an existing user
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: Password123!
+      responses:
+        '200':
+          description: Login successful (returns JWT)
+        '401':
+          description: Invalid credentials
+
+  /v1/auth/user/forgot-password:
+    post:
+      summary: Request password reset link
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Password reset link sent (if account exists)
+
+  /v1/auth/user/reset-password:
+    post:
+      summary: Reset password using 64-char token
+      tags:
+        - User Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  example: "e37e0cb0cdc28a53796b8ea3d5b9855d1c2fbacecca413546da31e814aeda0ec"
+                password:
+                  type: string
+                  example: NewPassword123!
+      responses:
+        '200':
+          description: Password successfully reset
+        '400':
+          description: Invalid or expired reset token
+
+  /v1/auth/host/signup:
+    post:
+      summary: Register a new host
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - full_name
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                full_name:
+                  type: string
+                  example: Jane Doe
+                password:
+                  type: string
+                  example: Password123!
+                phone:
+                  type: string
+                  example: "9800000000"
+      responses:
+        '201':
+          description: Host registered successfully
+        '400':
+          description: Validation error
+        '409':
+          description: Email already in use
+
+  /v1/auth/host/verify-email:
+    post:
+      summary: Verify host email with OTP
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                otp:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email successfully verified
+        '400':
+          description: Invalid or expired OTP
+
+  /v1/auth/host/login:
+    post:
+      summary: Login an existing host
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+                password:
+                  type: string
+                  example: Password123!
+      responses:
+        '200':
+          description: Login successful (returns JWT)
+        '401':
+          description: Invalid credentials
+
+  /v1/auth/host/forgot-password:
+    post:
+      summary: Request password reset link
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: host@example.com
+      responses:
+        '200':
+          description: Password reset link sent (if account exists)
+
+  /v1/auth/host/reset-password:
+    post:
+      summary: Reset password using 64-char token
+      tags:
+        - Host Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  example: "e37e0cb0cdc28a53796b8ea3d5b9855d1c2fbacecca413546da31e814aeda0ec"
+                password:
+                  type: string
+                  example: NewPassword123!
+      responses:
+        '200':
+          description: Password successfully reset
+        '400':
+          description: Invalid or expired reset token
+
+  /v1/auth/admin/login:
+    post:
+      summary: Secure Admin panel login
+      tags:
+        - Admin Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@grihastha.com
+                password:
+                  type: string
+                  example: SecureAdminPass1!
+      responses:
+        '200':
+          description: Admin login successful (returns JWT)
+        '401':
+          description: Invalid credentials or insufficient privileges
+
+  /v1/listings:
+    post:
+      summary: Create a new blank listing (DRAFT status)
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Listing created successfully with DRAFT status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  host_id:
+                    type: string
+                    format: uuid
+                  category:
+                    type: string
+                    nullable: true
+                  address:
+                    type: object
+                    nullable: true
+                  floor_plan:
+                    type: object
+                    nullable: true
+                  amenities:
+                    type: array
+                    nullable: true
+                  photos:
+                    type: array
+                    nullable: true
+                  status:
+                    type: string
+                    enum: [DRAFT, PUBLISHED]
+                  created_at:
+                    type: string
+                    format: date-time
+        '401':
+          description: Unauthorized - Host JWT required
+
+  /v1/listings/{id}:
+    patch:
+      summary: Update listing (multi-step form support)
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  example: entire_place
+                address:
+                  type: object
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    province:
+                      type: string
+                    postal_code:
+                      type: string
+                floor_plan:
+                  type: object
+                  properties:
+                    guests:
+                      type: integer
+                    beds:
+                      type: integer
+                    bedrooms:
+                      type: integer
+                    bathrooms:
+                      type: integer
+                amenities:
+                  type: array
+                  items:
+                    type: string
+                  example: ["WiFi", "Kitchen", "Pool"]
+                photos:
+                  type: array
+                  items:
+                    type: string
+                title:
+                  type: string
+                  example: "Beautiful Cozy Villa in Duhabi"
+                  maxLength: 50
+                description:
+                  type: string
+                  example: "Enjoy a relaxing stay with modern amenities..."
+                  maxLength: 500
+      responses:
+        '200':
+          description: Listing updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not the owner of this listing
+        '404':
+          description: Listing not found
+
+    get:
+      summary: Get a single listing by ID (public for published listings)
+      description: Returns full listing details. Published listings are accessible without authentication. Draft listings require the owner's JWT.
+      tags:
+        - Property Listings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing details returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      host_id:
+                        type: string
+                        format: uuid
+                      title:
+                        type: string
+                        example: "Vellum Cloud Estate in Kodaikanal"
+                      description:
+                        type: string
+                      category:
+                        type: string
+                        example: entire_place
+                      address:
+                        type: object
+                        properties:
+                          street:
+                            type: string
+                          city:
+                            type: string
+                          province:
+                            type: string
+                          country:
+                            type: string
+                          postal_code:
+                            type: string
+                      floor_plan:
+                        type: object
+                        properties:
+                          guests:
+                            type: integer
+                          bedrooms:
+                            type: integer
+                          beds:
+                            type: integer
+                          bathrooms:
+                            type: integer
+                      amenities:
+                        type: array
+                        items:
+                          type: string
+                        example: ["WiFi", "Kitchen", "Pool", "Parking"]
+                      photos:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            url:
+                              type: string
+                              format: uri
+                              example: "https://res.cloudinary.com/grihastha/image/upload/v123/grihastha/listings/abc/photo.webp"
+                            publicId:
+                              type: string
+                            width:
+                              type: integer
+                            height:
+                              type: integer
+                      price_per_night:
+                        type: number
+                        example: 5000
+                      minimum_night_stay:
+                        type: integer
+                      maximum_night_stay:
+                        type: integer
+                      status:
+                        type: string
+                        enum: [DRAFT, PUBLISHED]
+                      published_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      created_at:
+                        type: string
+                        format: date-time
+                      updated_at:
+                        type: string
+                        format: date-time
+        '403':
+          description: Cannot access draft listings that are not yours
+        '404':
+          description: Listing not found
+
+    delete:
+      summary: Delete a draft listing
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not the owner or listing already published
+        '404':
+          description: Listing not found
+
+  /v1/listings/{id}/publish:
+    post:
+      summary: Publish a draft listing (DRAFT → PUBLISHED)
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Listing published successfully
+        '400':
+          description: Cannot publish incomplete listing
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not the owner of this listing
+        '404':
+          description: Listing not found
+
+  /v1/listings/{id}/photos:
+    post:
+      summary: Upload photos for a listing to Cloudinary
+      description: Uploads one or more images to Cloudinary and appends them to the listing's photos array. Images are auto-converted to WebP.
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - photos
+              properties:
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Image files to upload (jpeg, png, webp)
+      responses:
+        '200':
+          description: Photos uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                    example: "Photos uploaded successfully to Cloudinary."
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      photos:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            url:
+                              type: string
+                              format: uri
+                            publicId:
+                              type: string
+                            width:
+                              type: integer
+                            height:
+                              type: integer
+        '400':
+          description: No files provided
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not the owner of this listing
+        '404':
+          description: Listing not found
+
+  /v1/listings/search:
+    get:
+      summary: Search published listings (Airbnb-style guest search)
+      description: |
+        Public endpoint for guests to search available properties.
+        Supports location text search, date availability checking,
+        guest capacity filtering, price range, category, amenities,
+        sorting, and pagination.
+      tags:
+        - Guest Search
+      parameters:
+        - name: location
+          in: query
+          schema:
+            type: string
+          description: Text search across city, province, street, and title
+          example: "Kathmandu"
+        - name: checkIn
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Check-in date (YYYY-MM-DD). Used with checkOut for availability.
+          example: "2026-04-30"
+        - name: checkOut
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Check-out date (YYYY-MM-DD). Used with checkIn for availability.
+          example: "2026-05-01"
+        - name: adults
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: Number of adults (13+)
+        - name: children
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: Number of children (ages 2-12)
+        - name: infants
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: Number of infants (under 2) — informational
+        - name: pets
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: Number of pets — informational
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by property type
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+          description: Minimum price per night
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+          description: Maximum price per night
+        - name: amenities
+          in: query
+          schema:
+            type: string
+          description: Comma-separated list of required amenities (e.g. "WiFi,Kitchen")
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [newest, price_asc, price_desc, rating]
+            default: newest
+          description: Sort order for results
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+          description: Results per page (max 50)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: List of published listings matching search criteria
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        host_id:
+                          type: string
+                          format: uuid
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        category:
+                          type: string
+                        address:
+                          type: object
+                        floor_plan:
+                          type: object
+                        amenities:
+                          type: array
+                          items:
+                            type: string
+                        photos:
+                          type: array
+                          items:
+                            type: object
+                        price_per_night:
+                          type: number
+                        host_name:
+                          type: string
+                        host_avatar:
+                          type: string
+                        host_is_superhost:
+                          type: boolean
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      hasMore:
+                        type: boolean
+
+  /v1/listings/host/my-listings:
+    get:
+      summary: Get all listings for authenticated host
+      tags:
+        - Property Listings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, PUBLISHED]
+          description: Filter by status (optional)
+      responses:
+        '200':
+          description: List of host's listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized - Host JWT required
+
+  /v1/media/upload:
+    post:
+      summary: Upload a property image
+      tags:
+        - Media & Uploads
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The image file to upload (jpeg, png, webp, max 5MB)
+      responses:
+        '201':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Image uploaded successfully."
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+                        example: "https://res.cloudinary.com/grihastha/image/upload/v1234567890/grihastha/media/12345.webp"
+                      publicId:
+                        type: string
+                        example: "grihastha/media/12345"
+                      width:
+                        type: integer
+                        example: 1200
+                      height:
+                        type: integer
+                        example: 800
+        '400':
+          description: Invalid file type or size
+        '401':
+          description: Unauthorized - Host JWT required
+
+
+  /v1/auth/social/google:
+    post:
+      summary: Google OAuth login/signup
+      tags: [Social Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id_token]
+              properties:
+                id_token:
+                  type: string
+                  description: Google ID token
+      responses:
+        '200':
+          description: Auth successful — returns JWT and user object
+
+  /v1/auth/social/facebook:
+    post:
+      summary: Facebook OAuth login/signup
+      tags: [Social Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [access_token]
+              properties:
+                access_token:
+                  type: string
+      responses:
+        '200':
+          description: Auth successful
+
+  /v1/auth/social/apple:
+    post:
+      summary: Apple Sign-In
+      tags: [Social Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id_token]
+              properties:
+                id_token:
+                  type: string
+      responses:
+        '200':
+          description: Auth successful
+
+  /v1/users/me:
+    get:
+      summary: Get own profile
+      tags: [User Profile]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                      full_name:
+                        type: string
+                      avatar_url:
+                        type: string
+                      phone:
+                        type: string
+                      bio:
+                        type: string
+                      preferred_currency:
+                        type: string
+                      is_superhost:
+                        type: boolean
+                      is_verified:
+                        type: boolean
+                      created_at:
+                        type: string
+                        format: date-time
+    patch:
+      summary: Update own profile
+      tags: [User Profile]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                  example: "Piyush Rauniyar"
+                phone:
+                  type: string
+                  example: "9800000000"
+                bio:
+                  type: string
+                  example: "Love traveling across Nepal"
+                preferred_currency:
+                  type: string
+                  example: "NPR"
+                avatar_url:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Profile updated
+
+  /v1/users/hosts/{id}/profile:
+    get:
+      summary: Public host profile with listings
+      tags: [User Profile]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Host profile with listings count and data
+        '404':
+          description: Host not found
+
+  /v1/bookings:
+    post:
+      summary: Create booking (instant or request-to-book)
+      tags: [Bookings]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listing_id, check_in, check_out, booking_type]
+              properties:
+                listing_id:
+                  type: string
+                  format: uuid
+                check_in:
+                  type: string
+                  format: date
+                  example: "2025-07-10"
+                check_out:
+                  type: string
+                  format: date
+                  example: "2025-07-14"
+                guests:
+                  type: object
+                  properties:
+                    adults:
+                      type: integer
+                      example: 2
+                    children:
+                      type: integer
+                      example: 1
+                    infants:
+                      type: integer
+                      example: 0
+                    pets:
+                      type: integer
+                      example: 0
+                booking_type:
+                  type: string
+                  enum: [instant, request]
+                  example: "instant"
+                special_requests:
+                  type: string
+                  example: "Early check-in if possible."
+      responses:
+        '201':
+          description: Booking created with price breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking_id:
+                    type: string
+                    format: uuid
+                  nights:
+                    type: integer
+                  status:
+                    type: string
+                    enum: [pending, confirmed]
+                  price_breakdown:
+                    type: object
+                    properties:
+                      base_price:
+                        type: integer
+                      cleaning_fee:
+                        type: integer
+                      platform_service_fee:
+                        type: integer
+                      tax:
+                        type: integer
+                      total:
+                        type: integer
+                  payment_status:
+                    type: string
+                    enum: [unpaid, paid]
+        '400':
+          description: Validation error (dates, own listing, etc.)
+        '409':
+          description: Dates already booked
+    get:
+      summary: Guest booking history
+      tags: [Bookings]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, confirmed, completed, cancelled, rejected]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of guest bookings
+
+  /v1/bookings/host/incoming:
+    get:
+      summary: Incoming booking requests for host
+      tags: [Host Bookings]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, confirmed, completed, cancelled, rejected]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of incoming booking requests
+
+  /v1/bookings/{id}:
+    get:
+      summary: Single booking detail
+      tags: [Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Full booking detail with listing, guest, host info
+        '404':
+          description: Booking not found
+
+  /v1/bookings/{id}/cancel:
+    patch:
+      summary: Guest cancels booking
+      tags: [Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: "Change of plans"
+      responses:
+        '200':
+          description: Booking cancelled
+
+  /v1/bookings/{id}/price-breakdown:
+    get:
+      summary: Itemized cost breakdown
+      tags: [Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Price breakdown object
+
+  /v1/bookings/{id}/accept:
+    patch:
+      summary: Host accepts request-to-book
+      tags: [Host Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Booking confirmed
+
+  /v1/bookings/{id}/decline:
+    patch:
+      summary: Host declines booking request
+      tags: [Host Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Booking declined
+
+  /v1/bookings/{id}/host-cancel:
+    patch:
+      summary: Host cancels confirmed booking
+      tags: [Host Bookings]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Booking cancelled by host
+
+  /v1/wishlists:
+    post:
+      summary: Create a new wishlist
+      tags: [Wishlists]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: "Dream Nepal Stays"
+      responses:
+        '201':
+          description: Wishlist created
+    get:
+      summary: Get all user wishlists
+      tags: [Wishlists]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of wishlists with cover image and count
+
+  /v1/wishlists/{id}:
+    delete:
+      summary: Delete a wishlist
+      tags: [Wishlists]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Wishlist deleted
+
+  /v1/wishlists/{id}/listings/{listingId}:
+    post:
+      summary: Add listing to wishlist
+      tags: [Wishlists]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: listingId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Listing added to wishlist
+    delete:
+      summary: Remove listing from wishlist
+      tags: [Wishlists]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: listingId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Listing removed
+
+  /v1/reviews:
+    post:
+      summary: Guest submits review after checkout
+      tags: [Reviews]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id, overall_rating]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                overall_rating:
+                  type: number
+                  minimum: 1
+                  maximum: 5
+                  example: 4.5
+                cleanliness:
+                  type: number
+                accuracy:
+                  type: number
+                communication:
+                  type: number
+                location:
+                  type: number
+                check_in:
+                  type: number
+                value:
+                  type: number
+                comment:
+                  type: string
+                  example: "Great stay! Beautiful views."
+      responses:
+        '201':
+          description: Review created
+        '400':
+          description: Already reviewed or booking not completed
+
+  /v1/reviews/listings/{id}:
+    get:
+      summary: Public reviews for a listing
+      tags: [Reviews]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Reviews with aggregate category averages
+
+  /v1/reviews/received:
+    get:
+      summary: All reviews host received
+      tags: [Host Reviews]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of reviews across all host listings
+
+  /v1/reviews/{id}/reply:
+    post:
+      summary: Host replies to a review
+      tags: [Host Reviews]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reply]
+              properties:
+                reply:
+                  type: string
+                  example: "Thank you! Hope to host you again."
+      responses:
+        '200':
+          description: Reply added
+        '400':
+          description: Already replied
+
+  /v1/payments/create-intent:
+    post:
+      summary: Create Stripe PaymentIntent for booking
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Returns clientSecret for Stripe Elements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  clientSecret:
+                    type: string
+                  paymentIntentId:
+                    type: string
+                  amount:
+                    type: object
+                    properties:
+                      npr:
+                        type: integer
+                      usd_cents:
+                        type: integer
+                      usd_display:
+                        type: string
+                        example: "$15.60"
+        '400':
+          description: Already paid or invalid total
+        '404':
+          description: Booking not found
+
+  /v1/payments/khalti/create-intent:
+    post:
+      summary: Create Khalti ePayment intent for booking
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Returns payment_url and pidx for Khalti redirect
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  payment_url:
+                    type: string
+                  pidx:
+                    type: string
+                  amount:
+                    type: object
+                    properties:
+                      npr:
+                        type: integer
+        '400':
+          description: Already paid or invalid total
+        '404':
+          description: Booking not found
+
+  /v1/payments/khalti/verify:
+    post:
+      summary: Verify payment after Khalti callback
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id, pidx]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                pidx:
+                  type: string
+                  example: "x4H7C5..."
+      responses:
+        '200':
+          description: Khalti Payment verified, booking confirmed
+        '400':
+          description: Payment not completed
+
+  /v1/payments/verify:
+    post:
+      summary: Verify payment after Stripe confirmation
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id, payment_intent_id]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                payment_intent_id:
+                  type: string
+                  example: "pi_3ABC..."
+      responses:
+        '200':
+          description: Payment verified, booking confirmed
+        '400':
+          description: Payment not completed
+
+  /v1/payments/history:
+    get:
+      summary: User payment history
+      tags: [Payments]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of payment records with listing titles
+
+  /v1/payments/webhook:
+    post:
+      summary: Stripe webhook (server-to-server)
+      tags: [Payments]
+      description: Called by Stripe. Requires raw body + stripe-signature header.
+      responses:
+        '200':
+          description: Event received
+
+  /v1/conversations:
+    post:
+      summary: Start conversation with a host
+      tags: [Messaging]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host_id]
+              properties:
+                host_id:
+                  type: string
+                  format: uuid
+                listing_id:
+                  type: string
+                  format: uuid
+                message:
+                  type: string
+                  example: "Hi! Is your place available?"
+      responses:
+        '200':
+          description: Conversation created
+    get:
+      summary: List all conversations
+      tags: [Messaging]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of conversations
+
+  /v1/conversations/{id}/messages:
+    get:
+      summary: Get messages in thread
+      tags: [Messaging]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Messages array
+    post:
+      summary: Send a message
+      tags: [Messaging]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  example: "I'll confirm the dates."
+      responses:
+        '200':
+          description: Message sent
+
+  /v1/notifications:
+    get:
+      summary: List notifications
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: unread_only
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of notifications
+
+  /v1/notifications/read-all:
+    patch:
+      summary: Mark all notifications as read
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All marked read
+
+  /v1/notifications/{id}/read:
+    patch:
+      summary: Mark single notification as read
+      tags: [Notifications]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notification marked read
+
+  /v1/listings/{id}/pricing:
+    patch:
+      summary: Update listing pricing
+      tags: [Host Listings Config]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price_per_night]
+              properties:
+                price_per_night:
+                  type: integer
+                  example: 5000
+                weekend_price:
+                  type: integer
+                  example: 6500
+                minimum_night_stay:
+                  type: integer
+                  default: 1
+                maximum_night_stay:
+                  type: integer
+                  default: 365
+                cleaning_fee:
+                  type: integer
+                  default: 0
+                security_deposit:
+                  type: integer
+                  default: 0
+      responses:
+        '200':
+          description: Pricing updated
+        '400':
+          description: Invalid price
+        '403':
+          description: Unauthorized
+
+  /v1/listings/{id}/promotions:
+    post:
+      summary: Create a discount promotion
+      tags: [Host Listings Config]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  example: "SUMMER20"
+                discount_percent:
+                  type: integer
+                  example: 20
+                valid_from:
+                  type: string
+                  format: date
+                valid_to:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Promotion created
+
+  /v1/listings/{id}/calendar:
+    get:
+      summary: Full calendar view (booked + blocked dates)
+      tags: [Host Calendar]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: month
+          schema:
+            type: string
+          description: "YYYY-MM format"
+          example: "2025-07"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Calendar data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listing_id:
+                    type: string
+                  month:
+                    type: string
+                  booked_ranges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        check_in:
+                          type: string
+                          format: date
+                        check_out:
+                          type: string
+                          format: date
+                  blocked_ranges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        from_date:
+                          type: string
+                          format: date
+                        to_date:
+                          type: string
+                          format: date
+
+  /v1/listings/{id}/availability/block:
+    post:
+      summary: Block dates on calendar
+      tags: [Host Calendar]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from:
+                  type: string
+                  format: date
+                  example: "2025-08-01"
+                to:
+                  type: string
+                  format: date
+                  example: "2025-08-05"
+                reason:
+                  type: string
+                  example: "Personal use"
+      responses:
+        '201':
+          description: Dates blocked
+
+  /v1/host/earnings:
+    get:
+      summary: Host earnings dashboard
+      tags: [Host Finances]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Total earnings and monthly breakdown
+
+  /v1/host/payouts/request:
+    post:
+      summary: Request a payout
+      tags: [Host Finances]
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  example: 25000
+                method:
+                  type: string
+                  enum: [bank_transfer, esewa, khalti]
+                  example: "bank_transfer"
+      responses:
+        '200':
+          description: Payout request submitted
+
+  /v1/host/property-verification/{listingId}:
+    post:
+      summary: Submit KYC documents for property verification
+      tags: [Host KYC]
+      parameters:
+        - in: path
+          name: listingId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                ownership_type:
+                  type: string
+                  example: "owner"
+                ward_number:
+                  type: string
+                municipality:
+                  type: string
+                province:
+                  type: string
+                district:
+                  type: string
+                property_reg_number:
+                  type: string
+                notes:
+                  type: string
+                ownership_certificate:
+                  type: string
+                  format: binary
+                citizenship_front:
+                  type: string
+                  format: binary
+                citizenship_back:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Documents submitted for review
+        '403':
+          description: Not the listing owner
+    get:
+      summary: Get property verification status
+      tags: [Host KYC]
+      parameters:
+        - in: path
+          name: listingId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Verification status
+        '404':
+          description: No verification found
+
+  /v1/admin/dashboard:
+    get:
+      summary: Platform analytics (GMV, users, listings, KYC)
+      tags: [Admin Dashboard]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Aggregate statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      total_gmv:
+                        type: integer
+                      total_users:
+                        type: integer
+                      total_hosts:
+                        type: integer
+                      total_listings:
+                        type: integer
+                      published_listings:
+                        type: integer
+                      pending_kyc:
+                        type: integer
+
+  /v1/admin/kyc/pending:
+    get:
+      summary: List pending KYC submissions
+      tags: [Admin KYC]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending verifications
+
+  /v1/admin/kyc/{id}/approve:
+    patch:
+      summary: Approve KYC submission
+      tags: [Admin KYC]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: KYC approved, host verified
+
+  /v1/admin/kyc/{id}/reject:
+    patch:
+      summary: Reject KYC submission
+      tags: [Admin KYC]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: "Documents blurry, re-upload."
+      responses:
+        '200':
+          description: KYC rejected
+
+  /v1/admin/users:
+    get:
+      summary: List all platform users
+      tags: [Admin Management]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [user, host, admin]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated user list
+
+  /v1/admin/disputes:
+    get:
+      summary: List all open disputes
+      tags: [Admin Operations]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [open, resolved, escalated]
+      responses:
+        '200':
+          description: List of disputes
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token required for protected endpoints
+
