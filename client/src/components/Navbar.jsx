@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiLogOut, FiMenu, FiX } from 'react-icons/fi'
+import { FiSearch, FiLogOut, FiMenu, FiX, FiHeart, FiBell } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useNavigate } from 'react-router-dom'
@@ -145,6 +145,14 @@ export default function Navbar() {
                   {unreadCount}
                 </motion.span>
               )}
+            </motion.button>
+
+            {/* Logout button */}
+            <motion.button id="navbar-logout-btn" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+              onClick={handleLogout}
+              title="Logout"
+              style={{ width: 40, height: 40, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#dc2626' }}>
+              <FiLogOut size={17} />
             </motion.button>
 
             {/* Profile dropdown */}

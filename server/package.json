@@ -1,24 +1,43 @@
 {
-  "name": "server",
+  "name": "grihastha-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
+  "description": "Grihastha — Peer-to-peer property rental platform API",
   "license": "ISC",
-  "type": "commonjs",
+  "author": "piyush",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "setup-db": "node scripts/setup-db.js",
+    "migrate": "node scripts/migrate.js",
+    "init-db": "npm run setup-db && npm run migrate",
+    "test": "NODE_OPTIONS=\"--experimental-vm-modules\" jest --forceExit --runInBand"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.3",
-    "cloudinary": "^2.9.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "helmet": "^8.1.0",
-    "morgan": "^1.10.1",
+    "axios": "^1.14.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^10.3.0",
+    "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
-    "nodemon": "^3.1.14"
+    "nodemailer": "^8.0.4",
+    "pg": "^8.13.3",
+    "stripe": "^22.0.0",
+    "swagger-ui-express": "^5.0.1",
+    "xss-clean": "^0.1.4",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "jest": "^30.3.0",
+    "nodemon": "^3.1.9",
+    "supertest": "^7.2.2"
   }
 }
