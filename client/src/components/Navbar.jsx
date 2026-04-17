@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiLogOut, FiMenu, FiX, FiBell, FiHeart, FiBookOpen, FiUser } from 'react-icons/fi'
+import { FiSearch, FiLogOut, FiMenu, FiX } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useNavigate } from 'react-router-dom'
@@ -221,18 +221,10 @@ export default function Navbar() {
                 <p style={{ fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{user?.role}</p>
               </div>
             </div>
-            {[
-              { label: 'My Bookings', path: '/bookings' },
-              { label: `Wishlist (${wishlist.length})`, path: '/wishlist' },
-              { label: `Notifications ${unreadCount > 0 ? `(${unreadCount})` : ''}`, path: '/notifications' },
-            ].map(item => (
-              <button key={item.label} onClick={() => { navigate(item.path); setMobileOpen(false) }}
-                style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderRadius: 12, border: 'none', background: '#f9fafb', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-                {item.label}
-              </button>
-            ))}
-            <button onClick={handleLogout}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', borderRadius: 12, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            <button
+              onClick={handleLogout}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 16px', borderRadius: 12, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >
               <FiLogOut size={15} /> Logout
             </button>
           </motion.div>
