@@ -1,7 +1,12 @@
-import express from "express";
 
-const router = express.Router();
+import { Router } from "express";
+import { getMyProfile, updateMyProfile, getPublicHostProfile } from "../controllers/user.profile.controller.js";
+import { verifyUser } from "../middlewares/authenticate.js";
 
-// User profile routes
+const router = Router();
+router.get("/me", verifyUser, getMyProfile);
+router.patch("/me", verifyUser, updateMyProfile);
+router.get("/hosts/:id/profile", getPublicHostProfile);
 
 export default router;
+      

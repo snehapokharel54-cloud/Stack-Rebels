@@ -1,7 +1,15 @@
-import express from "express";
 
-const router = express.Router();
+import { Router } from "express";
+import { getEarnings, requestPayout, getPayoutHistory, setupBankAccount, getBankAccount } from "../controllers/host.dashboard.controller.js";
+import { verifyUser } from "../middlewares/authenticate.js";
 
-// Host dashboard routes
+const router = Router();
+router.use(verifyUser);
+router.get("/earnings", getEarnings);
+router.post("/payouts/request", requestPayout);
+router.get("/payouts/history", getPayoutHistory);
+router.post("/bank-account", setupBankAccount);
+router.get("/bank-account", getBankAccount);
 
 export default router;
+      

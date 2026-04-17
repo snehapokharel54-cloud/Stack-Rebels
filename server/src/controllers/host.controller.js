@@ -454,7 +454,7 @@ export const declineBooking = async (req, res) => {
     }
 
     const result = await db.query(
-      `UPDATE bookings SET status = 'DECLINED', cancellation_reason = $2, updated_at = NOW()
+      `UPDATE bookings SET status = 'REJECTED', cancellation_reason = $2, updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [bookingId, reason]

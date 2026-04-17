@@ -339,3 +339,233 @@ export const sendHostWelcomeEmail = async (email, hostName) => {
     throw error;
   }
 };
+
+/**
+ * Send booking confirmation email to guests after successful payment.
+ * @param {string} email - Recipient email address
+ * @param {Object} bookingData - Booking details
+ * @returns {Promise<void>}
+ */
+export const sendBookingConfirmationEmail = async (email, bookingData) => {
+  if (!transporter) {
+    console.warn("[WARN] Email transporter not configured, skipping booking confirmation email");
+    return;
+  }
+  try {
+    const { guest_name, listing_title, check_in, check_out, total_amount, booking_id, host_phone } = bookingData;
+    
+    // Default basic rules if not provided
+    const basicRules = `
+      <ul style="margin-top: 5px; padding-left: 20px;">
+        <li>No smoking inside the property.</li>
+        <li>Quiet hours are from 10:00 PM to 7:00 AM.</li>
+        <li>No unauthorized parties or events.</li>
+        <li>Please keep the property clean and tidy.</li>
+      </ul>
+    `;
+    
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `Booking Confirmed: ${listing_title} on Grihastha`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #f7f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #0b8e72; margin-top: 0;">Booking Confirmed! 🎉</h1>
+            </div>
+            
+            <p>Hi <strong>${guest_name}</strong>,</p>
+            <p>Great news! Your booking and payment for <strong>${listing_title}</strong> have been successfully processed.</p>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #0b8e72;">
+              <h3 style="margin-top: 0; color: #0b8e72;">Booking Details</h3>
+              <p style="margin: 5px 0;"><strong>Confirmation Code:</strong> ${booking_id}</p>
+              <p style="margin: 5px 0;"><strong>Check-in:</strong> ${new Date(check_in).toLocaleDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Check-out:</strong> ${new Date(check_out).toLocaleDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Total Paid:</strong> NPR ${total_amount}</p>
+              <p style="margin: 5px 0;"><strong>Host Phone:</strong> ${host_phone || 'Not provided'}</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f59e0b;">
+              <h3 style="margin-top: 0; color: #f59e0b;">Host's Basic Rules</h3>
+              ${basicRules}
+            </div>
+            
+            <p>You can view your trip details, message your host, or find directions directly in your Grihastha account.</p>
+            
+            <center>
+              <a href="${process.env.CLIENT_URL}/bookings" style="display: inline-block; background-color: #0b8e72; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">View My Trips</a>
+            </center>
+            
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+            <p style="font-size: 13px; color: #888; text-align: center;">
+              Thank you for choosing Grihastha!<br>
+              © 2026 Grihastha Platform
+            </p>
+          </body>
+        </html>
+      `,
+    });
+  } catch (error) {
+    console.error("Error sending booking confirmation email:", error);
+    // Don't throw, we don't want to crash the payment verification if email fails
+  }
+};
+
+/**
+ * Send new booking email to hosts after a guest successfully pays.
+ * @param {string} email - Recipient email address (host)
+ * @param {Object} bookingData - Booking details
+ * @returns {Promise<void>}
+ */
+export const sendHostNewBookingEmail = async (email, bookingData) => {
+  if (!transporter) {
+    console.warn("[WARN] Email transporter not configured, skipping new booking email to host");
+    return;
+  }
+  try {
+    const { host_name, guest_name, listing_title, check_in, check_out, total_amount, booking_id } = bookingData;
+    
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `New Booking Request: ${listing_title}`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #f7f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #667eea; margin-top: 0;">You have a new booking! 🥳</h1>
+            </div>
+            
+            <p>Hi <strong>${host_name}</strong>,</p>
+            <p>Great news! <strong>${guest_name}</strong> just completed a booking for <strong>${listing_title}</strong>.</p>
+            
+            <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #667eea;">
+              <h3 style="margin-top: 0; color: #667eea;">Booking Details</h3>
+              <p style="margin: 5px 0;"><strong>Confirmation Code:</strong> ${booking_id}</p>
+              <p style="margin: 5px 0;"><strong>Guest Name:</strong> ${guest_name}</p>
+              <p style="margin: 5px 0;"><strong>Check-in:</strong> ${new Date(check_in).toLocaleDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Check-out:</strong> ${new Date(check_out).toLocaleDateString()}</p>
+              <p style="margin: 5px 0;"><strong>Total Earned (approx):</strong> NPR ${total_amount}</p>
+            </div>
+            
+            <p>You can view and manage their booking from your Host Dashboard.</p>
+            
+            <center>
+              <a href="${process.env.CLIENT_URL}/host/dashboard" style="display: inline-block; background-color: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">Go to Dashboard</a>
+            </center>
+            
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+            <p style="font-size: 13px; color: #888; text-align: center;">
+              Happy hosting!<br>
+              © 2026 Grihastha Platform
+            </p>
+          </body>
+        </html>
+      `,
+    });
+  } catch (error) {
+    console.error("Error sending host new booking email:", error);
+  }
+};
+
+/**
+ * Send booking rejection email to guest when host declines.
+ */
+export const sendBookingRejectionEmail = async (email, data) => {
+  if (!transporter) return;
+  try {
+    const { guest_name, listing_title, reason } = data;
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `Booking Request Declined: ${listing_title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #d9534f;">Booking Request Declined</h2>
+          <p>Hi <strong>${guest_name}</strong>,</p>
+          <p>Unfortunately, the host has declined your booking request for <strong>${listing_title}</strong>.</p>
+          ${reason ? `<div style="background: #fdf7f7; padding: 15px; border-radius: 5px; margin: 15px 0;"><strong>Reason from host:</strong><br/>${reason}</div>` : ""}
+          <p>No worries! You can browse other properties and find another great place to stay.</p>
+          <a href="${process.env.CLIENT_URL}/home" style="display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px;">Browse More Properties</a>
+        </div>
+      `,
+    });
+  } catch (error) { console.error("Error sending rejection email:", error); }
+};
+
+/**
+ * Send cancellation email to guest when host cancels.
+ */
+export const sendHostCancellationEmailToGuest = async (email, data) => {
+  if (!transporter) return;
+  try {
+    const { guest_name, listing_title, reason, booking_id } = data;
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `URGENT: Booking Cancelled - ${listing_title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #d9534f;">Your Booking was Cancelled by the Host</h2>
+          <p>Hi <strong>${guest_name}</strong>,</p>
+          <p>We're sorry to inform you that your booking (${booking_id}) for <strong>${listing_title}</strong> has been cancelled by the host.</p>
+          ${reason ? `<div style="background: #fdf7f7; padding: 15px; border-radius: 5px; margin: 15px 0;"><strong>Reason:</strong><br/>${reason}</div>` : ""}
+          <p>If you were already charged, a refund is being processed according to our cancellation policy.</p>
+          <p>Please contact our support team if you need help finding alternative accommodation.</p>
+        </div>
+      `,
+    });
+  } catch (error) { console.error("Error sending host cancellation email:", error); }
+};
+
+/**
+ * Send cancellation notification to host when guest cancels.
+ */
+export const sendGuestCancellationEmailToHost = async (email, data) => {
+  if (!transporter) return;
+  try {
+    const { host_name, guest_name, listing_title, reason, booking_id } = data;
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `Booking Cancelled by Guest: ${listing_title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #f0ad4e;">Trip Cancelled by Guest</h2>
+          <p>Hi <strong>${host_name}</strong>,</p>
+          <p>Guest <strong>${guest_name}</strong> has cancelled their booking (${booking_id}) for <strong>${listing_title}</strong>.</p>
+          ${reason ? `<div style="background: #fff8f0; padding: 15px; border-radius: 5px; margin: 15px 0;"><strong>Reason provided:</strong><br/>${reason}</div>` : ""}
+          <p>Your property dates are now reopened and available for other guests to book.</p>
+          <a href="${process.env.CLIENT_URL}/host/dashboard" style="display: inline-block; padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px;">View Dashboard</a>
+        </div>
+      `,
+    });
+  } catch (error) { console.error("Error sending guest cancellation email to host:", error); }
+};
+
+/**
+ * Send cancellation confirmation to guest.
+ */
+export const sendGuestCancellationEmailToGuest = async (email, data) => {
+  if (!transporter) return;
+  try {
+    const { guest_name, listing_title, booking_id } = data;
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `Cancellation Confirmed: ${listing_title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2>Your Cancellation is Confirmed</h2>
+          <p>Hi <strong>${guest_name}</strong>,</p>
+          <p>You have successfully cancelled your booking (${booking_id}) for <strong>${listing_title}</strong>.</p>
+          <p>We hope to see you on another trip soon!</p>
+        </div>
+      `,
+    });
+  } catch (error) { console.error("Error sending cancellation confirmation to guest:", error); }
+};
