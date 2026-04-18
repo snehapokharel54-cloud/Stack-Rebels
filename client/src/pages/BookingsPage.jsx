@@ -73,8 +73,11 @@ export default function BookingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          style={{ marginBottom: 40 }}
+          style={{ marginBottom: 40, position: 'relative' }}
         >
+          <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#093880', fontSize: 14, fontWeight: 600, textDecoration: 'none', marginBottom: 20 }}>
+            <FiArrowRight style={{ transform: 'rotate(180deg)' }} /> Back to Home
+          </a>
           <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 'clamp(28px, 6vw, 44px)', fontWeight: 900, color: '#0f172a', marginBottom: 8 }}>
             My Bookings
           </h1>
@@ -134,7 +137,7 @@ export default function BookingsPage() {
         {/* Loading state */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-            <motion.div
+             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
               style={{ width: 44, height: 44, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: '#093880', margin: '0 auto 16px' }}
@@ -154,14 +157,22 @@ export default function BookingsPage() {
               const listingImage = booking.listing_photo || booking.propertyImage || 'https://images.unsplash.com/photo-1570129477492-45927003fa5f?w=400&q=80'
               const location = booking.listing_location || booking.location || ''
               const guestName = booking.guest_name || user?.name || ''
-              const checkIn = booking.check_in || booking.checkIn || ''
-              const checkOut = booking.check_out || booking.checkOut || ''
+              
+              // Format dates nicely
+              const formatDate = (dateString) => {
+                if (!dateString) return ''
+                const d = new Date(dateString)
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              }
+              const checkIn = formatDate(booking.check_in || booking.checkIn)
+              const checkOut = formatDate(booking.check_out || booking.checkOut)
+              
               const nights = booking.nights || 1
-              const totalPrice = booking.total_price || booking.totalPrice || 0
+              const totalPrice = booking.total_price || booking.total || 0
 
               return (
                 <motion.div
-                  key={booking.id}
+                  key={booking.booking_id || booking.id || idx}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1, duration: 0.5 }}
@@ -203,6 +214,7 @@ export default function BookingsPage() {
                       <FiCalendar size={14} />
                       {checkIn} to {checkOut} ({nights} night{nights > 1 ? 's' : ''})
                     </div>
+
                     {guestName && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6b7280', fontSize: 12, marginBottom: 16 }}>
                         <FiUser size={14} />

@@ -79,7 +79,7 @@ export const getGuestBookings = async (req, res) => {
 
     let sql = `SELECT b.id as booking_id, l.title as listing_title, l.photos->0->>'url' as listing_photo,
                u.full_name as host_name, b.check_in, b.check_out, b.nights, 
-               (b.price_breakdown->>'total')::int as total, b.status, b.payment_status,
+               b.total_price, b.status, b.payment_status,
                p.gateway, p.khalti_pidx
                FROM bookings b
                JOIN listings l ON b.listing_id = l.id
