@@ -1,6 +1,8 @@
 import axios from "axios";
 import { query } from "../config/db.js";
 import { sendBookingConfirmationEmail, sendHostNewBookingEmail } from "../utils/mailer.js";
+import { sendPushNotification } from "../utils/firebase.js";
+
 
 const KHALTI_BASE_URL = "https://khalti.com/api/v1";
 // Note: Khalti v1 usually uses the same endpoint for sandbox, 
@@ -229,6 +231,17 @@ export const verifyKhaltiPayment = async (req, res) => {
            VALUES ($1, $2, $3, $4)`,
           [bi.host_id, "New Booking Received! 🥳", `${bi.guest_name} just booked ${bi.listing_title}.`, "new_booking"]
         );
+
+        // C. Send Push Notifications (Firebase)
+        try {
+          const guestMsg = `Your booking for ${bi.listing_title} is confirmed!`;
+          await sendPushNotification(bi.guest_fcm, "Booking Confirmed", guestMsg, { route: '/bookings' });
+
+          const hostMsg = `${bi.guest_name} booked ${bi.listing_title}!`;
+          await sendPushNotification(bi.host_fcm, "New Booking Received", hostMsg, { route: '/vendor' });
+        } catch (pushErr) {
+          console.error("Push notification error:", pushErr);
+        }
 
         console.log(`[KHALTI] Notifications and emails sent for booking ${booking_id}`);
       }

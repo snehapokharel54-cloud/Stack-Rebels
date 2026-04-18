@@ -49,6 +49,22 @@ const verifyToken = (requiredRole) => {
   };
 };
 
+/** Verify JWT validity without enforcing a specific role */
+const authenticate = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, message: "Access denied. No token provided." });
+    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ success: false, message: "Invalid or expired token." });
+  }
+};
+
 /** Verify JWT with role: "user" */
 const verifyUser = verifyToken("user");
 
@@ -58,4 +74,4 @@ const verifyHost = verifyToken("host");
 /** Verify JWT with role: "admin" */
 const verifyAdmin = verifyToken("admin");
 
-export { verifyUser, verifyHost, verifyAdmin };
+export { verifyUser, verifyHost, verifyAdmin, authenticate };

@@ -1072,20 +1072,8 @@ paths:
                   format: date
                   example: "2025-07-14"
                 guests:
-                  type: object
-                  properties:
-                    adults:
-                      type: integer
-                      example: 2
-                    children:
-                      type: integer
-                      example: 1
-                    infants:
-                      type: integer
-                      example: 0
-                    pets:
-                      type: integer
-                      example: 0
+                  type: integer
+                  example: 2
                 booking_type:
                   type: string
                   enum: [instant, request]
@@ -1406,28 +1394,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [booking_id, overall_rating]
+              required: [booking_id, rating]
               properties:
                 booking_id:
                   type: string
                   format: uuid
-                overall_rating:
+                rating:
                   type: number
                   minimum: 1
                   maximum: 5
                   example: 4.5
-                cleanliness:
-                  type: number
-                accuracy:
-                  type: number
-                communication:
-                  type: number
-                location:
-                  type: number
-                check_in:
-                  type: number
-                value:
-                  type: number
                 comment:
                   type: string
                   example: "Great stay! Beautiful views."
@@ -1521,7 +1497,7 @@ paths:
                   format: uuid
       responses:
         '200':
-          description: Returns clientSecret for Stripe Elements
+          description: Returns payment_url for Stripe Checkout redirect
           content:
             application/json:
               schema:
@@ -1529,9 +1505,9 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  clientSecret:
+                  payment_url:
                     type: string
-                  paymentIntentId:
+                  sessionId:
                     type: string
                   amount:
                     type: object

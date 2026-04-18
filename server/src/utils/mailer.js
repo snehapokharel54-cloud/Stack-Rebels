@@ -431,17 +431,18 @@ export const sendHostNewBookingEmail = async (email, bookingData) => {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
-      subject: `New Booking Request: ${listing_title}`,
+      subject: `Booking Confirmed: ${listing_title} (Auto-Confirmed)`,
       html: `
         <!DOCTYPE html>
         <html lang="en">
           <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background-color: #f7f9fa; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
               <h1 style="color: #667eea; margin-top: 0;">You have a new booking! 🥳</h1>
+              <p style="color: #28a745; font-weight: bold; margin-top: 5px;">Payment received & Booking auto-confirmed</p>
             </div>
             
             <p>Hi <strong>${host_name}</strong>,</p>
-            <p>Great news! <strong>${guest_name}</strong> just completed a booking for <strong>${listing_title}</strong>.</p>
+            <p>Great news! <strong>${guest_name}</strong> just paid for a stay at <strong>${listing_title}</strong>. Since the payment was successful, the booking has been <strong>automatically confirmed</strong> in your calendar.</p>
             
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #667eea;">
               <h3 style="margin-top: 0; color: #667eea;">Booking Details</h3>
@@ -449,13 +450,13 @@ export const sendHostNewBookingEmail = async (email, bookingData) => {
               <p style="margin: 5px 0;"><strong>Guest Name:</strong> ${guest_name}</p>
               <p style="margin: 5px 0;"><strong>Check-in:</strong> ${new Date(check_in).toLocaleDateString()}</p>
               <p style="margin: 5px 0;"><strong>Check-out:</strong> ${new Date(check_out).toLocaleDateString()}</p>
-              <p style="margin: 5px 0;"><strong>Total Earned (approx):</strong> NPR ${total_amount}</p>
+              <p style="margin: 5px 0;"><strong>Total Earned:</strong> NPR ${total_amount}</p>
             </div>
             
-            <p>You can view and manage their booking from your Host Dashboard.</p>
+            <p>No further action is required from your side. You can view the full details on your Host Dashboard.</p>
             
             <center>
-              <a href="${process.env.CLIENT_URL}/host/dashboard" style="display: inline-block; background-color: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">Go to Dashboard</a>
+              <a href="${process.env.CLIENT_URL}/vendor" style="display: inline-block; background-color: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">Go to Dashboard</a>
             </center>
             
             <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />

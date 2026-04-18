@@ -1,148 +1,215 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+/**
+ * context/AuthContext.jsx — JWT-based auth against Grihastha backend
+ *
+ * Roles: frontend uses "user"/"vendor", backend uses "user"/"host"
+ * We map vendor → host for API calls.
+ */
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import api, { getToken, setToken, clearToken, getStoredUser, setStoredUser } from '../services/api'
 
 const AuthContext = createContext(null)
-const AUTH_STORAGE_KEY = 'grihastha_user'
-const LEGACY_AUTH_STORAGE_KEY = 'nestaway_user'
-const ACCOUNTS_STORAGE_KEY = 'grihastha_accounts'
 
-const normalizeEmail = (email = '') => email.trim().toLowerCase()
-
-const loadAccounts = () => {
-  try {
-    const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY)
-    const parsed = stored ? JSON.parse(stored) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+/** Map frontend role names to backend API path segments */
+const roleToEndpoint = (role) => {
+  if (role === 'vendor' || role === 'host') return 'host'
+  if (role === 'admin') return 'admin'
+  return 'user'
 }
 
 export function AuthProvider({ children }) {
-  const [accounts, setAccounts] = useState(loadAccounts)
-
-  const [user, setUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(LEGACY_AUTH_STORAGE_KEY)
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
-  })
-
+  const [user, setUser] = useState(getStoredUser)
   const [loading, setLoading] = useState(false)
+  const [initializing, setInitializing] = useState(true)
 
+  // ── Rehydrate user from token on mount ──────────────────────
+  useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      setInitializing(false)
+      return
+    }
+    api.get('/users/me').then((res) => {
+      if (res.success && res.data) {
+        const userData = normalizeUser(res.data)
+        setUser(userData)
+        setStoredUser(userData)
+      } else {
+        // Token invalid
+        clearToken()
+        setUser(null)
+      }
+      setInitializing(false)
+    })
+  }, [])
+
+  // ── Persist user to localStorage on change ──────────────────
   useEffect(() => {
     if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
-      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+      setStoredUser(user)
     }
   }, [user])
 
-  useEffect(() => {
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts))
-  }, [accounts])
+  // ── Normalize backend user object to frontend shape ─────────
+  const normalizeUser = (userObj) => ({
+    id: userObj.id,
+    name: userObj.full_name,
+    email: userObj.email,
+    role: userObj.is_host ? 'vendor' : userObj.role === 'ADMIN' ? 'admin' : 'user',
+    avatar: userObj.avatar_url || userObj.full_name?.charAt(0)?.toUpperCase(),
+    avatarUrl: userObj.avatar_url || null,
+    phone: userObj.phone || '',
+    bio: userObj.bio || '',
+    isVerified: userObj.is_verified || false,
+    isSuperhost: userObj.is_superhost || false,
+    preferredCurrency: userObj.preferred_currency || 'NPR',
+    createdAt: userObj.created_at,
+  })
 
-  /**
-   * signup — stores an account with extended profile fields
-   * @param {{ name, email, password, role, phone?, idFile?, propName?, propLocation?, propDesc? }} params
-   */
-  const signup = ({
-    name, email, password, role,
-    phone = '', phoneVerified = false,
-    idVerified = false,
-    propName = '', propLocation = '', propDesc = '',
-  }) => {
+  // ── Signup ──────────────────────────────────────────────────
+  const signup = useCallback(async ({ email, full_name, password, phone, role, document }) => {
     setLoading(true)
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const normalizedEmail = normalizeEmail(email)
-        const exists = accounts.some((acc) => normalizeEmail(acc.email) === normalizedEmail)
+    try {
+      const endpoint = roleToEndpoint(role)
+      let res;
 
-        if (exists) {
-          setLoading(false)
-          resolve({ ok: false, error: 'Account already exists with this email.' })
-          return
-        }
+      if (document) {
+        const formData = new FormData()
+        formData.append('email', email)
+        formData.append('full_name', full_name)
+        formData.append('password', password)
+        if (phone?.trim()) formData.append('phone', phone.trim())
+        if (document) formData.append('document', document)
+        res = await api.upload(`/auth/${endpoint}/signup`, formData)
+      } else {
+        const body = { email, full_name, password }
+        if (phone?.trim()) body.phone = phone.trim()
+        res = await api.post(`/auth/${endpoint}/signup`, body)
+      }
+      if (!res.success) {
+        return { ok: false, error: res.message }
+      }
+      return { ok: true, needsVerification: true, email }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-        const newAccount = {
-          name: name.trim(),
-          email: normalizedEmail,
-          password,
-          role,
-          phone,
-          phoneVerified,
-          idVerified,
-          // host-specific
-          propName,
-          propLocation,
-          propDesc,
-          createdAt: new Date().toISOString(),
-          // verification badges
-          badges: [
-            ...(phoneVerified ? ['phone_verified'] : []),
-            ...(idVerified ? ['id_verified'] : []),
-            ...(role === 'vendor' ? ['host'] : ['guest']),
-          ],
-        }
-
-        setAccounts((prev) => [...prev, newAccount])
-        setLoading(false)
-        resolve({ ok: true })
-      }, 800)
-    })
-  }
-
-  const login = ({ email, password }) => {
+  // ── Verify Email OTP ────────────────────────────────────────
+  const verifyEmail = useCallback(async ({ email, otp, role }) => {
     setLoading(true)
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const normalizedEmail = normalizeEmail(email)
-        const account = accounts.find(
-          (acc) => normalizeEmail(acc.email) === normalizedEmail && acc.password === password,
-        )
-
-        if (!account) {
-          setLoading(false)
-          resolve({ ok: false, error: 'Invalid email or password.' })
-          return
+    try {
+      const endpoint = roleToEndpoint(role)
+      const res = await api.post(`/auth/${endpoint}/verify-email`, { email, otp })
+      if (!res.success) {
+        return { ok: false, error: res.message }
+      }
+      // After verification, the backend may return a token
+      const token = res.token || res.data?.token;
+      const user = res.user || res.data?.user;
+      
+      if (token) {
+        setToken(token)
+        if (user) {
+          const userData = normalizeUser(user)
+          setUser(userData)
+          setStoredUser(userData)
         }
+      }
+      return { ok: true }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-        const userData = {
-          name: account.name,
-          email: account.email,
-          role: account.role,
-          avatar: account.name?.charAt(0)?.toUpperCase(),
-          phone: account.phone || '',
-          phoneVerified: account.phoneVerified || false,
-          idVerified: account.idVerified || false,
-          badges: account.badges || [],
-          propName: account.propName || '',
-          propLocation: account.propLocation || '',
-        }
+  // ── Login ───────────────────────────────────────────────────
+  const login = useCallback(async ({ email, password, role }) => {
+    setLoading(true)
+    try {
+      const endpoint = roleToEndpoint(role || 'user')
+      const res = await api.post(`/auth/${endpoint}/login`, { email, password })
+      if (!res.success) {
+        return { ok: false, error: res.message }
+      }
+      
+      const token = res.token || res.data?.token;
+      const user = res.user || res.data?.user;
 
-        setUser(userData)
-        setLoading(false)
-        resolve({ ok: true, user: userData })
-      }, 800)
-    })
-  }
+      // Store token
+      if (token) {
+        setToken(token)
+      }
+      // Build user data
+      const userData = user ? normalizeUser(user) : { email, role: role || 'user' }
+      setUser(userData)
+      setStoredUser(userData)
+      return { ok: true, user: userData }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  const logout = () => {
+  // ── Logout ──────────────────────────────────────────────────
+  const logout = useCallback(() => {
+    clearToken()
     setUser(null)
-  }
+  }, [])
 
-  /** Update profile fields in-memory and localStorage */
-  const updateUser = (updates) => {
-    setUser(prev => prev ? { ...prev, ...updates } : prev)
-  }
+  // ── Fetch / refresh profile ─────────────────────────────────
+  const fetchProfile = useCallback(async () => {
+    const res = await api.get('/users/me')
+    if (res.success && res.data) {
+      const userData = normalizeUser(res.data)
+      setUser(userData)
+      setStoredUser(userData)
+      return userData
+    }
+    return null
+  }, [])
 
-  const isAuthenticated = !!user
+  // ── Update profile ─────────────────────────────────────────
+  const updateUser = useCallback(async (updates) => {
+    const res = await api.patch('/users/me', updates)
+    if (res.success) {
+      // Refresh profile from server
+      await fetchProfile()
+      return { ok: true }
+    }
+    return { ok: false, error: res.message }
+  }, [fetchProfile])
+
+  // ── Forgot password ─────────────────────────────────────────
+  const forgotPassword = useCallback(async ({ email, role }) => {
+    const endpoint = roleToEndpoint(role || 'user')
+    const res = await api.post(`/auth/${endpoint}/forgot-password`, { email })
+    return res.success ? { ok: true } : { ok: false, error: res.message }
+  }, [])
+
+  // ── Reset password ──────────────────────────────────────────
+  const resetPassword = useCallback(async ({ token, password, role }) => {
+    const endpoint = roleToEndpoint(role || 'user')
+    const res = await api.post(`/auth/${endpoint}/reset-password`, { token, password })
+    return res.success ? { ok: true } : { ok: false, error: res.message }
+  }, [])
+
+  const isAuthenticated = !!user && !!getToken()
 
   return (
-    <AuthContext.Provider value={{ user, signup, login, logout, loading, isAuthenticated, updateUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        signup,
+        verifyEmail,
+        login,
+        logout,
+        loading,
+        initializing,
+        isAuthenticated,
+        updateUser,
+        fetchProfile,
+        forgotPassword,
+        resetPassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

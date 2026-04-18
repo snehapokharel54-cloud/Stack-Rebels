@@ -1,0 +1,4 @@
+{
+  "type": "module",
+  "scripts": { "testdb": "node test-db.js" }
+}

@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FiMail, FiArrowLeft, FiCheckCircle, FiRefreshCw } from 'react-icons/fi'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { AuthInput } from './AuthInput'
 import AuthCard from './AuthCard'
@@ -15,28 +16,37 @@ export default function ForgotPassword({ onBack }) {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resendCd, setResendCd] = useState(0)
+  const { forgotPassword } = useAuth()
   const { showToast } = useToast()
 
   const handleSend = async () => {
     if (!email.includes('@')) { setEmailError('Enter a valid email address.'); return }
     setEmailError('')
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1000)) // mock API call
+    const result = await forgotPassword({ email })
     setLoading(false)
-    setSent(true)
-    setResendCd(60)
-    showToast('Password reset email sent!', 'success')
-    const interval = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(interval); return 0 } return c - 1 }), 1000)
+    if (result.ok) {
+      setSent(true)
+      setResendCd(60)
+      showToast('Password reset email sent!', 'success')
+      const interval = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(interval); return 0 } return c - 1 }), 1000)
+    } else {
+      setEmailError(result.error || 'Failed to send reset email.')
+    }
   }
 
   const handleResend = async () => {
     if (resendCd > 0) return
     setLoading(true)
-    await new Promise(r => setTimeout(r, 800))
+    const result = await forgotPassword({ email })
     setLoading(false)
-    setResendCd(60)
-    showToast('Resent! Check your inbox.', 'info')
-    const interval = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(interval); return 0 } return c - 1 }), 1000)
+    if (result.ok) {
+      setResendCd(60)
+      showToast('Resent! Check your inbox.', 'info')
+      const interval = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(interval); return 0 } return c - 1 }), 1000)
+    } else {
+      showToast(result.error || 'Failed to resend.', 'error')
+    }
   }
 
   return (
@@ -99,7 +109,7 @@ export default function ForgotPassword({ onBack }) {
             </button>
 
             <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 16 }}>
-              Note: In demo mode, no real email is sent.
+              Check your inbox for a reset link from Grihastha.
             </p>
           </div>
         )}

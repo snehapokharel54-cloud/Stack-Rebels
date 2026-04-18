@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiHome, FiSliders, FiGrid, FiSearch, FiMapPin } from 'react-icons/fi'
 import { MdOutlineApartment, MdOutlineMeetingRoom } from 'react-icons/md'
 import { FaBuilding } from 'react-icons/fa'
-import { LuBedDouble } from 'react-icons/lu'
 import Navbar from '../components/Navbar'
 import PropertyCard from '../components/PropertyCard'
 import { useAppData } from '../context/AppDataContext'
@@ -33,31 +32,63 @@ function PropertySkeleton() {
         <div style={{ height: 11, borderRadius: 8, background: '#f0f0f0', width: '50%', marginTop: 8, animation: 'shimmer 1.5s infinite' }} />
         <div style={{ height: 13, borderRadius: 8, background: '#f0f0f0', width: '40%', marginTop: 8, animation: 'shimmer 1.5s infinite' }} />
       </div>
-      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   )
 }
 
 export default function UserHome() {
   const {
-    filteredProperties,
-    searchQuery, setSearchQuery,
-    activeCategory, setActiveCategory,
-    priceRange, setPriceRange,
+    listings,
+    listingsLoading,
+    pagination,
+    searchListings,
   } = useAppData()
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [priceRange, setPriceRange] = useState([0, 50000])
   const [showFilters, setShowFilters] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [initialLoad, setInitialLoad] = useState(true)
 
-  // Simulate initial load
+  // Fetch listings on mount and when filters change
+  const doSearch = useCallback(async () => {
+    await searchListings({
+      location: searchQuery,
+      category: activeCategory !== 'all' ? activeCategory : undefined,
+      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+      maxPrice: priceRange[1] < 50000 ? priceRange[1] : undefined,
+    })
+    setInitialLoad(false)
+  }, [searchQuery, activeCategory, priceRange, searchListings])
+
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 900)
-    return () => clearTimeout(t)
-  }, [])
+    doSearch()
+  }, [doSearch])
 
   const clearSearch = () => {
     setSearchQuery('')
   }
+
+  const loading = initialLoad || listingsLoading
+
+  // Map API listing data to PropertyCard format
+  const mappedListings = listings.map((l) => ({
+    id: l.id,
+    title: l.title || 'Untitled Property',
+    location: l.address ? `${l.address.city || ''}, ${l.address.province || ''}`.replace(/^,\s*|,\s*$/g, '') : 'Nepal',
+    price: l.price_per_night || 0,
+    image: l.photos?.[0]?.url || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=80',
+    images: l.photos?.map(p => p.url) || [],
+    rating: l.average_rating || 0,
+    reviews: l.review_count || 0,
+    category: l.category || 'house',
+    hostName: l.host_name || 'Host',
+    hostAvatar: l.host_avatar || l.host_name?.charAt(0) || 'H',
+    bedrooms: l.floor_plan?.bedrooms || 1,
+    maxGuests: l.floor_plan?.guests || 2,
+    amenities: l.amenities || [],
+    description: l.description || '',
+  }))
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Open Sans', sans-serif" }}>
@@ -138,7 +169,7 @@ export default function UserHome() {
               {(() => { const cat = CATEGORIES.find(c => c.id === activeCategory); return cat ? <><cat.Icon size={20} />{cat.id === 'all' ? 'All Properties' : `${cat.label}s`}</> : 'All Properties' })()}
             </h2>
             <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
-              {filteredProperties.length} {filteredProperties.length === 1 ? 'property' : 'properties'} found
+              {mappedListings.length} {mappedListings.length === 1 ? 'property' : 'properties'} found
               {searchQuery && ` for "${searchQuery}"`}
             </p>
           </div>
@@ -171,7 +202,7 @@ export default function UserHome() {
                   <input type="number" value={priceRange[1]} onChange={e => setPriceRange([priceRange[0], +e.target.value])}
                     style={{ width: 100, padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13 }} />
                 </div>
-                <button onClick={() => setPriceRange([0, 15000])}
+                <button onClick={() => setPriceRange([0, 50000])}
                   style={{ padding: '8px 16px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>
                   Reset
                 </button>
@@ -185,7 +216,7 @@ export default function UserHome() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24 }}>
             {SKELETON_IDS.map(i => <PropertySkeleton key={i} />)}
           </div>
-        ) : filteredProperties.length === 0 ? (
+        ) : mappedListings.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -193,21 +224,21 @@ export default function UserHome() {
             </div>
             <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 20, color: '#111827', marginBottom: 8 }}>No properties found</h3>
             <p style={{ color: '#6b7280', fontSize: 14 }}>Try adjusting your search or filters</p>
-            <button onClick={() => { clearSearch(); setActiveCategory('all'); setPriceRange([0, 15000]) }}
+            <button onClick={() => { clearSearch(); setActiveCategory('all'); setPriceRange([0, 50000]) }}
               style={{ marginTop: 20, padding: '11px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
               Clear Filters
             </button>
           </motion.div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24 }}>
-            {filteredProperties.map((listing, i) => (
+            {mappedListings.map((listing, i) => (
               <PropertyCard key={listing.id} listing={listing} index={i} />
             ))}
           </div>
         )}
 
         {/* Mid-page scenic banner */}
-        {!loading && filteredProperties.length > 0 && (
+        {!loading && mappedListings.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}
             style={{ margin: '56px 0', borderRadius: 20, overflow: 'hidden', height: 180, position: 'relative', boxShadow: '0 4px 24px rgba(0,0,0,0.1)' }}

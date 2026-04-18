@@ -238,46 +238,82 @@ export const getEarnings = async (req, res) => {
       });
     }
 
-    let totalEarnings = 0;
-    let monthlyBreakdown = [];
+    // Total earnings (paid bookings only)
+    const earningsRes = await db.query(
+      `SELECT COALESCE(SUM(b.total_price), 0) as total_earnings
+       FROM bookings b 
+       JOIN listings l ON b.listing_id = l.id
+       WHERE l.host_id = $1 AND b.payment_status = 'paid'`,
+      [hostId]
+    );
 
-    try {
-      // Total earnings
-      const totalResult = await db.query(
-        `SELECT COALESCE(SUM(b.total_price), 0) as total_earnings
-         FROM bookings b
-         JOIN listings l ON b.listing_id = l.id
-         WHERE l.host_id = $1`,
-        [hostId]
-      );
-      totalEarnings = parseFloat(totalResult.rows[0].total_earnings);
+    // Monthly revenue (paid bookings, current year)
+    const revenueRes = await db.query(
+      `SELECT EXTRACT(MONTH FROM b.created_at)::int as month_num,
+              TO_CHAR(b.created_at, 'Mon') as label,
+              COALESCE(SUM(b.total_price), 0) as revenue
+       FROM bookings b
+       JOIN listings l ON b.listing_id = l.id
+       WHERE l.host_id = $1 AND b.payment_status = 'paid'
+         AND b.created_at >= DATE_TRUNC('year', NOW())
+       GROUP BY month_num, label
+       ORDER BY month_num`,
+      [hostId]
+    );
 
-      // Monthly breakdown
-      const monthlyResult = await db.query(
-        `SELECT 
-          DATE_TRUNC('month', b.created_at)::date as month,
-          COALESCE(SUM(b.total_price), 0) as earnings
-         FROM bookings b
-         JOIN listings l ON b.listing_id = l.id
-         WHERE l.host_id = $1
-         GROUP BY DATE_TRUNC('month', b.created_at)
-         ORDER BY month DESC
-         LIMIT 12`,
-        [hostId]
-      );
-      monthlyBreakdown = monthlyResult.rows.map(row => ({
-        month: row.month,
-        earnings: parseFloat(row.earnings),
-      }));
-    } catch (err) {
-      console.warn("Bookings table not available yet, using zero earnings:", err.message);
+    // Monthly booking count (all bookings, current year)
+    const bookingsRes = await db.query(
+      `SELECT EXTRACT(MONTH FROM b.created_at)::int as month_num,
+              TO_CHAR(b.created_at, 'Mon') as label,
+              COUNT(*)::int as bookings
+       FROM bookings b
+       JOIN listings l ON b.listing_id = l.id
+       WHERE l.host_id = $1
+         AND b.created_at >= DATE_TRUNC('year', NOW())
+       GROUP BY month_num, label
+       ORDER BY month_num`,
+      [hostId]
+    );
+
+    // Build complete monthly array (Jan–Dec) filling gaps with 0
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const revenueMap = {};
+    const bookingsMap = {};
+    revenueRes.rows.forEach(r => { revenueMap[r.month_num] = Number(r.revenue) });
+    bookingsRes.rows.forEach(r => { bookingsMap[r.month_num] = Number(r.bookings) });
+
+    const currentMonth = new Date().getMonth() + 1; // 1-indexed
+    const monthly_data = [];
+    for (let m = 1; m <= currentMonth; m++) {
+      monthly_data.push({
+        label: monthNames[m - 1],
+        revenue: revenueMap[m] || 0,
+        bookings: bookingsMap[m] || 0,
+      });
     }
+    
+    // Calculate occupancy rate
+    const totalListings = await db.query(
+      `SELECT COUNT(*) FROM listings WHERE host_id = $1 AND status = 'PUBLISHED'`,
+      [hostId]
+    );
+    const bookedListings = await db.query(
+      `SELECT COUNT(DISTINCT b.listing_id) FROM bookings b
+       JOIN listings l ON b.listing_id = l.id
+       WHERE l.host_id = $1 AND b.status = 'CONFIRMED' AND b.check_out >= NOW()`,
+      [hostId]
+    );
+
+    const total = parseInt(totalListings.rows[0].count) || 1;
+    const booked = parseInt(bookedListings.rows[0].count) || 0;
+    const occupancy = Math.round((booked / total) * 100);
 
     res.json({
       success: true,
       data: {
-        total_earnings: totalEarnings,
-        monthly_breakdown: monthlyBreakdown,
+        total_earnings: Number(earningsRes.rows[0].total_earnings),
+        occupancy_rate: occupancy,
+        monthly_data: monthly_data,
       },
     });
   } catch (error) {
