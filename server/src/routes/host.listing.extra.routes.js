@@ -1,10 +1,10 @@
 
 import { Router } from "express";
 import { updatePricing, createPromotion, getPromotions, deletePromotion, setSeasonalPricing, setCancellationPolicy, setHouseRules, getCalendar, blockDates, unblockDates, syncIcal, exportIcal, inviteCohost, getCohosts, updateCohost, removeCohost } from "../controllers/host.listing.extra.controller.js";
-import { verifyUser } from "../middlewares/authenticate.js";
+import { verifyHost } from "../middlewares/authenticate.js";
 
 const router = Router();
-router.use(verifyUser);
+router.use(verifyHost);
 router.patch("/:id/pricing", updatePricing);
 router.post("/:id/promotions", createPromotion);
 router.get("/:id/promotions", getPromotions);

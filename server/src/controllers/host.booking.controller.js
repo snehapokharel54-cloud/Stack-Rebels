@@ -15,9 +15,9 @@ export const getIncomingBookings = async (req, res) => {
     const { limit = 20, offset = 0 } = req.query;
 
     const result = await query(
-      `SELECT b.id as booking_id, l.title as listing_title, 
+      `SELECT b.id as booking_id, b.id, l.title as listing_title, 
               u.full_name as guest_name, u.avatar_url as guest_avatar, u.email as guest_email,
-              b.check_in, b.check_out, b.nights, (b.price_breakdown->>'total')::int as total,
+              b.check_in, b.check_out, b.nights, b.total_price, b.price_breakdown,
               b.status, b.booking_type, b.created_at, b.special_requests, b.num_guests
        FROM bookings b
        JOIN listings l ON b.listing_id = l.id
@@ -42,9 +42,9 @@ export const getBookingHistory = async (req, res) => {
     const hostId = req.user.sub;
     const { status, limit = 20, offset = 0 } = req.query;
 
-    let sql = `SELECT b.id as booking_id, l.title as listing_title, 
+    let sql = `SELECT b.id as booking_id, b.id, l.title as listing_title, 
                       u.full_name as guest_name, u.avatar_url as guest_avatar,
-                      b.check_in, b.check_out, b.nights, (b.price_breakdown->>'total')::int as total,
+                      b.check_in, b.check_out, b.nights, b.total_price, b.price_breakdown,
                       b.status, b.payment_status, b.created_at
                FROM bookings b
                JOIN listings l ON b.listing_id = l.id

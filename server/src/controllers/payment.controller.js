@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /**
  * POST /v1/payments/create-intent
- * Creates a Stripe PaymentIntent for a pending booking.
+ * Creates a Stripe Checkout Session for a hosted redirect payment.
  * Body: { booking_id }
  */
 export const initiatePayment = async (req, res) => {
@@ -19,7 +19,7 @@ export const initiatePayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "booking_id is required" });
     }
 
-    // 1. Fetch the booking and verify it belongs to this guest
+    // 1. Fetch the booking 
     const bookingResult = await query(
       `SELECT b.id, b.guest_id, b.listing_id, b.status, b.payment_status,
               b.price_breakdown, l.title as listing_title
@@ -43,74 +43,88 @@ export const initiatePayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Booking is already paid" });
     }
 
-    // 2. Extract amount from price_breakdown
+    // 2. Extract amount
     const priceBreakdown = typeof booking.price_breakdown === "string"
       ? JSON.parse(booking.price_breakdown)
       : booking.price_breakdown;
 
     const totalNPR = priceBreakdown?.total || 0;
-    if (totalNPR <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid booking total" });
-    }
-
-    // Convert NPR to USD cents for Stripe (approx 1 USD = 133 NPR)
     const NPR_TO_USD_RATE = 133;
-    const amountUSDCents = Math.max(50, Math.round((totalNPR / NPR_TO_USD_RATE) * 100)); // min $0.50
+    const amountUSDCents = Math.max(50, Math.round((totalNPR / NPR_TO_USD_RATE) * 100));
 
-    // 3. Create Stripe PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountUSDCents,
-      currency: "usd",
+    // 3. Create Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Stay at ${booking.listing_title}`,
+              description: `Booking for ${booking.listing_title}`,
+            },
+            unit_amount: amountUSDCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment-success?gateway=stripe&session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
+      cancel_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/property/${booking.listing_id}?payment_cancelled=true`,
       metadata: {
         booking_id: booking.id,
         user_id: userId,
-        listing_title: booking.listing_title,
-        total_npr: totalNPR.toString(),
       },
-      description: `Grihastha Booking: ${booking.listing_title}`,
     });
 
-    // 4. Store the payment intent reference in DB
+    // 4. Store session ID
     await query(
-      `INSERT INTO payments (booking_id, user_id, amount, stripe_payment_intent_id, amount_npr, amount_usd_cents, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'INITIALIZED')
+      `INSERT INTO payments (booking_id, user_id, amount, status, gateway, amount_npr, stripe_payment_intent_id)
+       VALUES ($1, $2, $3, 'INITIALIZED', 'stripe', $4, $5)
        ON CONFLICT (booking_id) DO UPDATE
-       SET stripe_payment_intent_id = $4, amount_usd_cents = $6, status = 'INITIALIZED', updated_at = NOW()`,
-      [booking.id, userId, (amountUSDCents / 100).toFixed(2), paymentIntent.id, totalNPR, amountUSDCents]
+       SET stripe_payment_intent_id = $5, gateway = 'stripe', status = 'INITIALIZED', updated_at = NOW()`,
+      [booking.id, userId, (amountUSDCents / 100).toFixed(2), totalNPR, session.id]
     );
 
     res.json({
       success: true,
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: {
-        npr: totalNPR,
-        usd_cents: amountUSDCents,
-        usd_display: `$${(amountUSDCents / 100).toFixed(2)}`,
-      },
+      payment_url: session.url,
+      sessionId: session.id,
     });
   } catch (error) {
-    console.error("Stripe create-intent error:", error.message);
+    console.error("Stripe checkout error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /**
  * POST /v1/payments/verify
- * Called by the frontend after stripe.confirmPayment succeeds.
- * Body: { booking_id, payment_intent_id }
+ * Called by the frontend after Stripe return to verify payment status.
+ * Body: { booking_id, payment_intent_id, session_id }
  */
 export const verifyPayment = async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { booking_id, payment_intent_id } = req.body;
+    const { booking_id, payment_intent_id, session_id } = req.body;
 
-    if (!booking_id || !payment_intent_id) {
-      return res.status(400).json({ success: false, message: "booking_id and payment_intent_id are required" });
+    if (!booking_id || (!payment_intent_id && !session_id)) {
+      return res.status(400).json({ success: false, message: "booking_id and either payment_intent_id or session_id are required" });
     }
 
-    // 1. Verify with Stripe that payment actually succeeded
-    const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    let pIntentId = payment_intent_id;
+
+    // 1. If we have a session_id, retrieve the session to get the payment_intent
+    if (session_id) {
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      pIntentId = session.payment_intent;
+    }
+
+    if (!pIntentId) {
+       return res.status(400).json({ success: false, message: "Could not find a valid payment intent for this session." });
+    }
+
+    // 2. Verify with Stripe that payment actually succeeded
+    const paymentIntent = await stripe.paymentIntents.retrieve(pIntentId);
 
     if (paymentIntent.status !== "succeeded") {
       return res.status(400).json({
@@ -119,21 +133,21 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    // 2. Update booking status
+    // 3. Update booking status
     await query(
       `UPDATE bookings SET payment_status = 'paid', status = 'CONFIRMED', updated_at = NOW()
        WHERE id = $1 AND guest_id = $2`,
       [booking_id, userId]
     );
 
-    // 3. Update payment record
+    // 4. Update payment record (handle both PI and Session lookup)
     await query(
-      `UPDATE payments SET status = 'succeeded', updated_at = NOW()
-       WHERE booking_id = $1 AND stripe_payment_intent_id = $2`,
-      [booking_id, payment_intent_id]
+      `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $2, updated_at = NOW()
+       WHERE booking_id = $1`,
+      [booking_id, pIntentId]
     );
 
-    // 4. Send Confirmation Email & Notifications
+    // 5. Send Confirmation Email & Notifications
     try {
       const emailQuery = await query(`
         SELECT b.id, b.check_in, b.check_out, b.price_breakdown, b.host_id, b.guest_id,

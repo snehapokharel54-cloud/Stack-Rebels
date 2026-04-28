@@ -1,10 +1,10 @@
 
 import { Router } from "express";
 import { getEarnings, requestPayout, getPayoutHistory, setupBankAccount, getBankAccount } from "../controllers/host.dashboard.controller.js";
-import { verifyUser } from "../middlewares/authenticate.js";
+import { verifyHost } from "../middlewares/authenticate.js";
 
 const router = Router();
-router.use(verifyUser);
+router.use(verifyHost);
 router.get("/earnings", getEarnings);
 router.post("/payouts/request", requestPayout);
 router.get("/payouts/history", getPayoutHistory);

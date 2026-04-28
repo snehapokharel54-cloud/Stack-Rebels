@@ -11,11 +11,13 @@ import {
   validateResetPassword,
 } from "../middlewares/validators.js";
 import { sendResetEmail, sendVerificationEmail, sendHostWelcomeEmail } from "../utils/mailer.js";
+import upload from "../middlewares/upload.js";
+import { uploadImage } from "../config/cloudinary.js";
 
 const router = Router();
 
 // ─── POST /signup ────────────────────────────────────────────────────
-router.post("/signup", validateHostSignup, async (req, res) => {
+router.post("/signup", upload.single("document"), validateHostSignup, async (req, res) => {
   try {
     const { email, 
       full_name, 
@@ -35,12 +37,24 @@ router.post("/signup", validateHostSignup, async (req, res) => {
     // Hash password
     const password_hash = await bcrypt.hash(password, 12);
 
+    // Handle document upload if present
+    let docUrl = null;
+    if (req.file) {
+      try {
+        const uploadRes = await uploadImage(req.file.buffer, { folder: "grihastha/documents" });
+        docUrl = uploadRes.secure_url;
+      } catch (uploadErr) {
+        console.error("Cloudinary upload failed:", uploadErr);
+        // We'll proceed with signup even if doc fails, or you can return 500
+      }
+    }
+
     // Insert host (is_host = true)
     const result = await query(
-      `INSERT INTO users (email, full_name, password_hash, phone, is_host)
-       VALUES ($1, $2, $3, $4, TRUE)
-       RETURNING id, email, full_name, avatar_url, phone, is_host, is_superhost, is_verified, created_at`,
-      [email, full_name, password_hash, phone]
+      `INSERT INTO users (email, full_name, password_hash, phone, is_host, verification_document)
+       VALUES ($1, $2, $3, $4, TRUE, $5)
+       RETURNING id, email, full_name, avatar_url, phone, is_host, is_superhost, is_verified, verification_document, created_at`,
+      [email, full_name, password_hash, phone, docUrl]
     );
 
     const host = result.rows[0];
