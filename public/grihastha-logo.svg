@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Grihastha logo">
+  <defs>
+    <linearGradient id="houseBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c6fd0"/>
+      <stop offset="100%" stop-color="#0b3f92"/>
+    </linearGradient>
+    <linearGradient id="arrowGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8bd45d"/>
+      <stop offset="100%" stop-color="#3ea34c"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M36 122 L128 44 L220 122 L200 122 L128 63 L56 122 Z" fill="url(#houseBlue)"/>
+  <path d="M68 113 V174 L127 222 L186 174 V113 L127 163 Z" fill="url(#houseBlue)" opacity="0.95"/>
+
+  <path d="M78 170 C74 126, 106 97, 145 102 C159 104, 172 111, 182 122" fill="none" stroke="url(#arrowGreen)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M180 108 L214 122 L191 151" fill="none" stroke="url(#arrowGreen)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M97 145 L124 171 L171 109" fill="none" stroke="#47b7ff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
