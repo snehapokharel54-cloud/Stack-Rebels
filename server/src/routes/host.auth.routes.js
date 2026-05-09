@@ -10,110 +10,128 @@ import {
   validateForgotPassword,
   validateResetPassword,
 } from "../middlewares/validators.js";
-import { sendResetEmail, sendVerificationEmail, sendHostWelcomeEmail } from "../utils/mailer.js";
+import {
+  sendResetEmail,
+  sendVerificationEmail,
+  sendHostWelcomeEmail,
+} from "../utils/mailer.js";
 import upload from "../middlewares/upload.js";
 import { uploadImage } from "../config/cloudinary.js";
 
 const router = Router();
 
-router.post("/signup", upload.single("document"), validateHostSignup, async (req, res) => {
-  try {
-    const { email, 
-      full_name, 
-      password, 
-      phone } = req.body;
+router.post(
+  "/signup",
+  upload.single("document"),
+  validateHostSignup,
+  async (req, res) => {
+    try {
+      const { email, full_name, password, phone } = req.body;
 
-
-    const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: "An account with this email already exists.",
-        errors: [{ field: "email", message: "Email is already registered." }],
-      });
-    }
-
-  
-    const password_hash = await bcrypt.hash(password, 12);
-
-    let docUrl = null;
-    if (req.file) {
-      try {
-        const uploadRes = await uploadImage(req.file.buffer, { folder: "grihastha/documents" });
-        docUrl = uploadRes.secure_url;
-      } catch (uploadErr) {
-        console.error("Cloudinary upload failed:", uploadErr);
-        // We'll proceed with signup even if doc fails, or you can return 500
+      const existing = await query("SELECT id FROM users WHERE email = $1", [
+        email,
+      ]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: "An account with this email already exists.",
+          errors: [{ field: "email", message: "Email is already registered." }],
+        });
       }
-    }
 
-    // Insert host (is_host = true)
-    const result = await query(
-      `INSERT INTO users (email, full_name, password_hash, phone, is_host, verification_document)
+      const password_hash = await bcrypt.hash(password, 12);
+
+      let docUrl = null;
+      if (req.file) {
+        try {
+          const uploadRes = await uploadImage(req.file.buffer, {
+            folder: "grihastha/documents",
+          });
+          docUrl = uploadRes.secure_url;
+        } catch (uploadErr) {
+          console.error("Cloudinary upload failed:", uploadErr);
+          // We'll proceed with signup even if doc fails, or you can return 500
+        }
+      }
+
+      // Insert host (is_host = true)
+      const result = await query(
+        `INSERT INTO users (email, full_name, password_hash, phone, is_host, verification_document)
        VALUES ($1, $2, $3, $4, TRUE, $5)
        RETURNING id, email, full_name, avatar_url, phone, is_host, is_superhost, is_verified, verification_document, created_at`,
-      [email, full_name, password_hash, phone, docUrl]
-    );
+        [email, full_name, password_hash, phone, docUrl],
+      );
 
-    const host = result.rows[0];
+      const host = result.rows[0];
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-    // Save to DB
-    await query(
-      `INSERT INTO email_verifications (user_id, otp_hash, expires_at)
+      // Save to DB
+      await query(
+        `INSERT INTO email_verifications (user_id, otp_hash, expires_at)
        VALUES ($1, $2, $3)
        ON CONFLICT (user_id) DO UPDATE
        SET otp_hash = $2, expires_at = $3, created_at = NOW()`,
-      [host.id, otpHash, expiresAt]
-    );
+        [host.id, otpHash, expiresAt],
+      );
 
-    // Send the verification email
-    try {
-      await sendVerificationEmail(host.email, otp);
-    } catch (err) {
-      console.warn("[DEV] Verification email send failed, but OTP was saved to DB.");
+      // Send the verification email
+      try {
+        await sendVerificationEmail(host.email, otp);
+      } catch (err) {
+        console.warn(
+          "[DEV] Verification email send failed, but OTP was saved to DB.",
+        );
+      }
+
+      // Send the welcome email
+      try {
+        await sendHostWelcomeEmail(host.email, host.full_name);
+      } catch (err) {
+        console.warn(
+          "[DEV] Welcome email send failed, but host was registered successfully.",
+        );
+      }
+
+      // Generate JWT
+      const token = jwt.sign(
+        { sub: host.id, role: "host", email: host.email },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" },
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Host registered successfully.",
+        data: { user: host, token },
+      });
+    } catch (error) {
+      console.error("Host signup error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error.",
+        errors: [],
+      });
     }
-
-    // Send the welcome email
-    try {
-      await sendHostWelcomeEmail(host.email, host.full_name);
-    } catch (err) {
-      console.warn("[DEV] Welcome email send failed, but host was registered successfully.");
-    }
-
-    // Generate JWT
-    const token = jwt.sign(
-      { sub: host.id, role: "host", email: host.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: "Host registered successfully.",
-      data: { user: host, token },
-    });
-  } catch (error) {
-    console.error("Host signup error:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error.",
-      errors: [],
-    });
-  }
-});
+  },
+);
 
 // ─── POST /verify-email ─────────────────────────────────────────────
 router.post("/verify-email", rateLimiter, async (req, res) => {
   try {
     const { email, otp } = req.body;
-    
+
     if (!email || !otp) {
-      return res.status(400).json({ success: false, message: "Email and OTP are required.", errors: [] });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Email and OTP are required.",
+          errors: [],
+        });
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -125,28 +143,54 @@ router.post("/verify-email", rateLimiter, async (req, res) => {
        FROM email_verifications ev
        JOIN users u ON u.id = ev.user_id
        WHERE u.email = $1 AND ev.otp_hash = $2`,
-      [cleanEmail, otpHash]
+      [cleanEmail, otpHash],
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ success: false, message: "Invalid verification code.", errors: [] });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid verification code.",
+          errors: [],
+        });
     }
 
     const record = result.rows[0];
 
     if (new Date() > new Date(record.expires_at)) {
-      await query("DELETE FROM email_verifications WHERE user_id = $1", [record.user_id]);
-      return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one.", errors: [] });
+      await query("DELETE FROM email_verifications WHERE user_id = $1", [
+        record.user_id,
+      ]);
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Verification code has expired. Please request a new one.",
+          errors: [],
+        });
     }
 
     // Mark as verified
-    await query("UPDATE users SET is_verified = TRUE WHERE id = $1", [record.user_id]);
-    await query("DELETE FROM email_verifications WHERE user_id = $1", [record.user_id]);
+    await query("UPDATE users SET is_verified = TRUE WHERE id = $1", [
+      record.user_id,
+    ]);
+    await query("DELETE FROM email_verifications WHERE user_id = $1", [
+      record.user_id,
+    ]);
 
-    return res.status(200).json({ success: true, message: "Email successfully verified!", data: {} });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "Email successfully verified!",
+        data: {},
+      });
   } catch (error) {
     console.error("Verification error:", error.message);
-    return res.status(500).json({ success: false, message: "Internal server error.", errors: [] });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error.", errors: [] });
   }
 });
 
@@ -158,7 +202,7 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
     // Must be a host
     const result = await query(
       "SELECT * FROM users WHERE email = $1 AND is_host = TRUE",
-      [email]
+      [email],
     );
 
     if (result.rows.length === 0) {
@@ -184,7 +228,7 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
     const token = jwt.sign(
       { sub: host.id, role: "host", email: host.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     // Destructure out password_hash
@@ -206,56 +250,65 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
 });
 
 // ─── POST /forgot-password ──────────────────────────────────────────
-router.post("/forgot-password", rateLimiter, validateForgotPassword, async (req, res) => {
-  try {
-    const { email } = req.body;
+router.post(
+  "/forgot-password",
+  rateLimiter,
+  validateForgotPassword,
+  async (req, res) => {
+    try {
+      const { email } = req.body;
 
-    // Always respond 200 to prevent email enumeration
-    const result = await query(
-      "SELECT id, email FROM users WHERE email = $1 AND is_host = TRUE",
-      [email]
-    );
+      // Always respond 200 to prevent email enumeration
+      const result = await query(
+        "SELECT id, email FROM users WHERE email = $1 AND is_host = TRUE",
+        [email],
+      );
 
-    if (result.rows.length > 0) {
-      const host = result.rows[0];
+      if (result.rows.length > 0) {
+        const host = result.rows[0];
 
-      // Generate raw token
-      const rawToken = crypto.randomBytes(32).toString("hex");
+        // Generate raw token
+        const rawToken = crypto.randomBytes(32).toString("hex");
 
-      // Hash the token for storage
-      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+        // Hash the token for storage
+        const tokenHash = crypto
+          .createHash("sha256")
+          .update(rawToken)
+          .digest("hex");
 
-      // Expire in 15 minutes
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        // Expire in 15 minutes
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-      // Upsert into password_resets
-      await query(
-        `INSERT INTO password_resets (user_id, token_hash, expires_at)
+        // Upsert into password_resets
+        await query(
+          `INSERT INTO password_resets (user_id, token_hash, expires_at)
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id) DO UPDATE
          SET token_hash = $2, expires_at = $3, created_at = NOW()`,
-        [host.id, tokenHash, expiresAt]
-      );
+          [host.id, tokenHash, expiresAt],
+        );
 
-      // Send email with raw token
-      const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}&type=host`;
-      await sendResetEmail(host.email, resetUrl);
+        // Send email with raw token
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}&type=host`;
+        await sendResetEmail(host.email, resetUrl);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "If an account with that email exists, a password reset link has been sent.",
+        data: {},
+      });
+    } catch (error) {
+      console.error("Host forgot-password error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error.",
+        errors: [],
+      });
     }
-
-    return res.status(200).json({
-      success: true,
-      message: "If an account with that email exists, a password reset link has been sent.",
-      data: {},
-    });
-  } catch (error) {
-    console.error("Host forgot-password error:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error.",
-      errors: [],
-    });
-  }
-});
+  },
+);
 
 // ─── POST /reset-password ───────────────────────────────────────────
 router.post("/reset-password", validateResetPassword, async (req, res) => {
@@ -271,7 +324,7 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
        FROM password_resets pr
        JOIN users u ON u.id = pr.user_id
        WHERE pr.token_hash = $1 AND u.is_host = TRUE`,
-      [tokenHash]
+      [tokenHash],
     );
 
     if (result.rows.length === 0) {
@@ -286,7 +339,9 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
 
     // Check expiry
     if (new Date() > new Date(resetRecord.expires_at)) {
-      await query("DELETE FROM password_resets WHERE user_id = $1", [resetRecord.user_id]);
+      await query("DELETE FROM password_resets WHERE user_id = $1", [
+        resetRecord.user_id,
+      ]);
       return res.status(400).json({
         success: false,
         message: "Reset token has expired. Please request a new one.",
@@ -300,11 +355,13 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
     // Update password
     await query(
       "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
-      [password_hash, resetRecord.user_id]
+      [password_hash, resetRecord.user_id],
     );
 
     // Delete used token
-    await query("DELETE FROM password_resets WHERE user_id = $1", [resetRecord.user_id]);
+    await query("DELETE FROM password_resets WHERE user_id = $1", [
+      resetRecord.user_id,
+    ]);
 
     return res.status(200).json({
       success: true,

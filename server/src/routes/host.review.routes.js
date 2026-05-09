@@ -3,7 +3,7 @@ import { verifyHost } from "../middlewares/authenticate.js";
 import {
   getReceivedReviews,
   replyToReview,
-  rateGuest
+  rateGuest,
 } from "../controllers/host.review.controller.js";
 
 const router = Router();

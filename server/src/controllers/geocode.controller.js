@@ -26,7 +26,8 @@ export const searchLocation = async (req, res) => {
 
     const response = await fetch(nominatimUrl.toString(), {
       headers: {
-        "User-Agent": "Grihastha/1.0.0 (https://github.com/piyushrauniyar/grihastha)",
+        "User-Agent":
+          "Grihastha/1.0.0 (https://github.com/piyushrauniyar/grihastha)",
         "Accept-Language": "en-US,en;q=0.9",
       },
       signal: AbortSignal.timeout(10000),

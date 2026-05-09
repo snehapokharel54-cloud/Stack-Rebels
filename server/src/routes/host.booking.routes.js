@@ -5,7 +5,7 @@ import {
   getBookingHistory,
   confirmBooking,
   declineBooking,
-  cancelConfirmedBooking
+  cancelConfirmedBooking,
 } from "../controllers/host.booking.controller.js";
 
 const router = Router();

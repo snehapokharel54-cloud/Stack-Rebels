@@ -51,7 +51,12 @@ router.patch("/:id", verifyHost, updateListing);
  * POST /v1/listings/:id/photos
  * Upload photos for a listing to Cloudinary
  */
-router.post("/:id/photos", verifyHost, upload.array("photos"), uploadListingPhotos);
+router.post(
+  "/:id/photos",
+  verifyHost,
+  upload.array("photos"),
+  uploadListingPhotos,
+);
 
 /**
  * POST /v1/listings/:id/publish

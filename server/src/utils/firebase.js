@@ -5,7 +5,7 @@ import admin from "firebase-admin";
 try {
   if (process.env.FIREBASE_PROJECT_ID) {
     admin.initializeApp({
-      credential: admin.credential.applicationDefault()
+      credential: admin.credential.applicationDefault(),
     });
     console.log("Firebase Admin initialized");
   } else {

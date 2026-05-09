@@ -19,7 +19,9 @@ router.post("/signup", validateUserSignup, async (req, res) => {
     const { email, full_name, password, phone } = req.body;
 
     // Check if email already exists
-    const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
+    const existing = await query("SELECT id FROM users WHERE email = $1", [
+      email,
+    ]);
     if (existing.rows.length > 0) {
       return res.status(409).json({
         success: false,
@@ -28,7 +30,6 @@ router.post("/signup", validateUserSignup, async (req, res) => {
       });
     }
 
-
     const password_hash = await bcrypt.hash(password, 12);
 
     // Insert user
@@ -36,7 +37,7 @@ router.post("/signup", validateUserSignup, async (req, res) => {
       `INSERT INTO users (email, full_name, password_hash, phone, is_host)
        VALUES ($1, $2, $3, $4, FALSE)
        RETURNING id, email, full_name, avatar_url, phone, is_host, is_verified, created_at`,
-      [email, full_name, password_hash, phone || null]
+      [email, full_name, password_hash, phone || null],
     );
 
     const user = result.rows[0];
@@ -52,21 +53,23 @@ router.post("/signup", validateUserSignup, async (req, res) => {
        VALUES ($1, $2, $3)
        ON CONFLICT (user_id) DO UPDATE
        SET otp_hash = $2, expires_at = $3, created_at = NOW()`,
-      [user.id, otpHash, expiresAt]
+      [user.id, otpHash, expiresAt],
     );
 
     // Send the verification email
     try {
       await sendVerificationEmail(user.email, otp);
     } catch (err) {
-      console.warn("[DEV] Verification email send failed, but OTP was saved to DB.");
+      console.warn(
+        "[DEV] Verification email send failed, but OTP was saved to DB.",
+      );
     }
 
     // Generate JWT
     const token = jwt.sign(
       { sub: user.id, role: "user", email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     return res.status(201).json({
@@ -88,9 +91,15 @@ router.post("/signup", validateUserSignup, async (req, res) => {
 router.post("/verify-email", rateLimiter, async (req, res) => {
   try {
     const { email, otp } = req.body;
-    
+
     if (!email || !otp) {
-      return res.status(400).json({ success: false, message: "Email and OTP are required.", errors: [] });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Email and OTP are required.",
+          errors: [],
+        });
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -102,28 +111,54 @@ router.post("/verify-email", rateLimiter, async (req, res) => {
        FROM email_verifications ev
        JOIN users u ON u.id = ev.user_id
        WHERE u.email = $1 AND ev.otp_hash = $2`,
-      [cleanEmail, otpHash]
+      [cleanEmail, otpHash],
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ success: false, message: "Invalid verification code.", errors: [] });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid verification code.",
+          errors: [],
+        });
     }
 
     const record = result.rows[0];
 
     if (new Date() > new Date(record.expires_at)) {
-      await query("DELETE FROM email_verifications WHERE user_id = $1", [record.user_id]);
-      return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one.", errors: [] });
+      await query("DELETE FROM email_verifications WHERE user_id = $1", [
+        record.user_id,
+      ]);
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Verification code has expired. Please request a new one.",
+          errors: [],
+        });
     }
 
     // Mark as verified
-    await query("UPDATE users SET is_verified = TRUE WHERE id = $1", [record.user_id]);
-    await query("DELETE FROM email_verifications WHERE user_id = $1", [record.user_id]);
+    await query("UPDATE users SET is_verified = TRUE WHERE id = $1", [
+      record.user_id,
+    ]);
+    await query("DELETE FROM email_verifications WHERE user_id = $1", [
+      record.user_id,
+    ]);
 
-    return res.status(200).json({ success: true, message: "Email successfully verified!", data: {} });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "Email successfully verified!",
+        data: {},
+      });
   } catch (error) {
     console.error("Verification error:", error.message);
-    return res.status(500).json({ success: false, message: "Internal server error.", errors: [] });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error.", errors: [] });
   }
 });
 
@@ -132,10 +167,7 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const result = await query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
-    );
+    const result = await query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({
@@ -160,7 +192,7 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
     const token = jwt.sign(
       { sub: user.id, role: "user", email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     // Destructure out password_hash before sending
@@ -182,58 +214,74 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
 });
 
 // ─── POST /forgot-password ──────────────────────────────────────────
-router.post("/forgot-password", rateLimiter, validateForgotPassword, async (req, res) => {
-  try {
-    const { email } = req.body;
+router.post(
+  "/forgot-password",
+  rateLimiter,
+  validateForgotPassword,
+  async (req, res) => {
+    try {
+      const { email } = req.body;
 
-    // Always respond 200 to prevent email enumeration
-    const result = await query("SELECT id, email FROM users WHERE email = $1", [email]);
+      // Always respond 200 to prevent email enumeration
+      const result = await query(
+        "SELECT id, email FROM users WHERE email = $1",
+        [email],
+      );
 
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
+      if (result.rows.length > 0) {
+        const user = result.rows[0];
 
-      // Generate raw token
-      const rawToken = crypto.randomBytes(32).toString("hex");
+        // Generate raw token
+        const rawToken = crypto.randomBytes(32).toString("hex");
 
-      // Hash the token for storage
-      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+        // Hash the token for storage
+        const tokenHash = crypto
+          .createHash("sha256")
+          .update(rawToken)
+          .digest("hex");
 
-      // Expire in 15 minutes
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        // Expire in 15 minutes
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-      // Upsert into password_resets
-      await query(
-        `INSERT INTO password_resets (user_id, token_hash, expires_at)
+        // Upsert into password_resets
+        await query(
+          `INSERT INTO password_resets (user_id, token_hash, expires_at)
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id) DO UPDATE
          SET token_hash = $2, expires_at = $3, created_at = NOW()`,
-        [user.id, tokenHash, expiresAt]
-      );
+          [user.id, tokenHash, expiresAt],
+        );
 
-      // Send email with raw token
-      const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
-      console.log(`\n\n[DEV] PASSWORD RESET TOKEN FOR ${user.email}:\n===============\n${rawToken}\n===============\n`);
-      try {
-        await sendResetEmail(user.email, resetUrl);
-      } catch (err) {
-        console.warn("[DEV] Email send failed, but token was saved to database.");
+        // Send email with raw token
+        const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${rawToken}`;
+        console.log(
+          `\n\n[DEV] PASSWORD RESET TOKEN FOR ${user.email}:\n===============\n${rawToken}\n===============\n`,
+        );
+        try {
+          await sendResetEmail(user.email, resetUrl);
+        } catch (err) {
+          console.warn(
+            "[DEV] Email send failed, but token was saved to database.",
+          );
+        }
       }
-    }
 
-    return res.status(200).json({
-      success: true,
-      message: "If an account with that email exists, a password reset link has been sent.",
-      data: {},
-    });
-  } catch (error) {
-    console.error("User forgot-password error:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-      errors: [],
-    });
-  }
-});
+      return res.status(200).json({
+        success: true,
+        message:
+          "If an account with that email exists, a password reset link has been sent.",
+        data: {},
+      });
+    } catch (error) {
+      console.error("User forgot-password error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+        errors: [],
+      });
+    }
+  },
+);
 
 // ─── POST /reset-password ───────────────────────────────────────────
 router.post("/reset-password", validateResetPassword, async (req, res) => {
@@ -248,7 +296,7 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
       `SELECT pr.user_id, pr.expires_at
        FROM password_resets pr
        WHERE pr.token_hash = $1`,
-      [tokenHash]
+      [tokenHash],
     );
 
     if (result.rows.length === 0) {
@@ -264,7 +312,9 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
     // Check expiry
     if (new Date() > new Date(resetRecord.expires_at)) {
       // Clean up expired token
-      await query("DELETE FROM password_resets WHERE user_id = $1", [resetRecord.user_id]);
+      await query("DELETE FROM password_resets WHERE user_id = $1", [
+        resetRecord.user_id,
+      ]);
       return res.status(400).json({
         success: false,
         message: "Reset token has expired. Please request a new one.",
@@ -278,11 +328,13 @@ router.post("/reset-password", validateResetPassword, async (req, res) => {
     // Update password
     await query(
       "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
-      [password_hash, resetRecord.user_id]
+      [password_hash, resetRecord.user_id],
     );
 
     // Delete used token
-    await query("DELETE FROM password_resets WHERE user_id = $1", [resetRecord.user_id]);
+    await query("DELETE FROM password_resets WHERE user_id = $1", [
+      resetRecord.user_id,
+    ]);
 
     return res.status(200).json({
       success: true,

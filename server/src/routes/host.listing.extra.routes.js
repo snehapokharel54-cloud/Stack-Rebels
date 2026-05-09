@@ -1,6 +1,22 @@
-
 import { Router } from "express";
-import { updatePricing, createPromotion, getPromotions, deletePromotion, setSeasonalPricing, setCancellationPolicy, setHouseRules, getCalendar, blockDates, unblockDates, syncIcal, exportIcal, inviteCohost, getCohosts, updateCohost, removeCohost } from "../controllers/host.listing.extra.controller.js";
+import {
+  updatePricing,
+  createPromotion,
+  getPromotions,
+  deletePromotion,
+  setSeasonalPricing,
+  setCancellationPolicy,
+  setHouseRules,
+  getCalendar,
+  blockDates,
+  unblockDates,
+  syncIcal,
+  exportIcal,
+  inviteCohost,
+  getCohosts,
+  updateCohost,
+  removeCohost,
+} from "../controllers/host.listing.extra.controller.js";
 import { verifyHost } from "../middlewares/authenticate.js";
 
 const router = Router();
@@ -23,4 +39,3 @@ router.patch("/:id/cohosts/:cohostId", updateCohost);
 router.delete("/:id/cohosts/:cohostId", removeCohost);
 
 export default router;
-      

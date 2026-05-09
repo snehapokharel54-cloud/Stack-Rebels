@@ -1,6 +1,10 @@
-
 import { Router } from "express";
-import { startConversation, getConversations, getMessages, sendMessage } from "../controllers/conversation.controller.js";
+import {
+  startConversation,
+  getConversations,
+  getMessages,
+  sendMessage,
+} from "../controllers/conversation.controller.js";
 import { verifyUser } from "../middlewares/authenticate.js";
 
 const router = Router();
@@ -11,4 +15,3 @@ router.get("/:id/messages", getMessages);
 router.post("/:id/messages", sendMessage);
 
 export default router;
-      
