@@ -137,3 +137,4 @@ export const replyToReview = async (req, res) => {
 export const rateGuest = async (req, res) => {
   res.json({ success: true, message: "Guest rated" });
 };
+
