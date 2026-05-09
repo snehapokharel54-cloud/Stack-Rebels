@@ -577,3 +577,4 @@ export const declineBooking = async (req, res) => {
       .json({ success: false, message: "Failed to decline booking" });
   }
 };
+
