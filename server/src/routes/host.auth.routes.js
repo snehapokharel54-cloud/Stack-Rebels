@@ -16,7 +16,6 @@ import { uploadImage } from "../config/cloudinary.js";
 
 const router = Router();
 
-// ─── POST /signup ────────────────────────────────────────────────────
 router.post("/signup", upload.single("document"), validateHostSignup, async (req, res) => {
   try {
     const { email, 
@@ -24,7 +23,7 @@ router.post("/signup", upload.single("document"), validateHostSignup, async (req
       password, 
       phone } = req.body;
 
-    // Check if email already exists
+
     const existing = await query("SELECT id FROM users WHERE email = $1", [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({
@@ -34,10 +33,9 @@ router.post("/signup", upload.single("document"), validateHostSignup, async (req
       });
     }
 
-    // Hash password
+  
     const password_hash = await bcrypt.hash(password, 12);
 
-    // Handle document upload if present
     let docUrl = null;
     if (req.file) {
       try {
