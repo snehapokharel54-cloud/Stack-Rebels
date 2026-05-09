@@ -211,3 +211,4 @@ export const triggerPayout = async (req, res) => {
 export const getAdminPayouts = async (req, res) => {
   res.json({ success: true, data: [] });
 };
+
