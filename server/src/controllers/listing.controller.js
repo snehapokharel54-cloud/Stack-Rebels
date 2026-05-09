@@ -291,3 +291,4 @@ export const uploadListingPhotos = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
