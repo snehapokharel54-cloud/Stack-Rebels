@@ -24,3 +24,4 @@ router.patch("/:id/decline", verifyHost, declineBooking);
 router.patch("/:id/host-cancel", verifyHost, cancelHostBooking);
 
 export default router;
+
