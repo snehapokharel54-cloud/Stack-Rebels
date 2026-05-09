@@ -118,3 +118,4 @@ export const setupBankAccount = async (req, res) => {
 export const getBankAccount = async (req, res) => {
   res.json({ success: true, data: null });
 };
+
