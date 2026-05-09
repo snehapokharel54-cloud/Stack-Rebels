@@ -64,3 +64,4 @@ export const uploadMedia = async (req, res) => {
     });
   }
 };
+
