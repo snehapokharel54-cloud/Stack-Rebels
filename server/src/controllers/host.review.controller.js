@@ -67,3 +67,4 @@ export const rateGuest = async (req, res) => {
     message: "Guest rated successfully (Placeholder).",
   });
 };
+
