@@ -65,3 +65,4 @@ export const getCohosts = async (_req, res) =>
   res.json({ success: true, data: [] });
 export const updateCohost = stub("Update co-host");
 export const removeCohost = stub("Remove co-host");
+
