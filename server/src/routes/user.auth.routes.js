@@ -14,7 +14,6 @@ import { sendResetEmail, sendVerificationEmail } from "../utils/mailer.js";
 
 const router = Router();
 
-// ─── POST /signup ────────────────────────────────────────────────────
 router.post("/signup", validateUserSignup, async (req, res) => {
   try {
     const { email, full_name, password, phone } = req.body;
@@ -29,7 +28,7 @@ router.post("/signup", validateUserSignup, async (req, res) => {
       });
     }
 
-    // Hash password
+
     const password_hash = await bcrypt.hash(password, 12);
 
     // Insert user
