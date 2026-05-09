@@ -79,3 +79,4 @@ export const searchLocation = async (req, res) => {
     });
   }
 };
+
