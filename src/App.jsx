@@ -32,7 +32,7 @@ export default function App() {
       {/* Protected — User (Guest) */}
       <Route path="/home" element={<ProtectedRoute requiredRole="user"><UserHome /></ProtectedRoute>} />
       <Route path="/property/:id" element={<ProtectedRoute requiredRole="user"><PropertyDetail /></ProtectedRoute>} />
-      <Route path="/property/:id/reviews" element={<ProtectedRoute requiredRole="user"><ReviewsPage /></ProtectedRoute>} />
+      <Route path="/property/:id/reviews" element={<ReviewsPage />} />
       <Route path="/wishlist" element={<ProtectedRoute requiredRole="user"><WishlistPage /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute requiredRole="user"><BookingHistoryPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute requiredRole="user"><NotificationsPage /></ProtectedRoute>} />

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   FiHome, FiPlus, FiList, FiCalendar, FiUser, FiLogOut,
   FiMenu, FiX, FiEdit2, FiTrash2, FiEye, FiCheck, FiClock, FiTrendingUp,
-  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell,
+  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell, FiMessageSquare,
 } from 'react-icons/fi'
 import { FaStar } from 'react-icons/fa'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { id: 'add', label: 'Add Property', icon: FiPlus },
   { id: 'listings', label: 'My Listings', icon: FiList },
   { id: 'bookings', label: 'Bookings', icon: FiCalendar },
+  { id: 'reviews', label: 'Reviews', icon: FiMessageSquare },
   { id: 'profile', label: 'Profile', icon: FiUser },
 ]
 
@@ -506,6 +507,112 @@ function HostBookingsSection({ user }) {
 }
 
 // ──────────────────────────────────────────────────
+// SECTION: Host Reviews
+// ──────────────────────────────────────────────────
+function HostReviewsSection({ user }) {
+  const { getHostProperties, getPropertyReviews, getPropertyAverageRating } = useAppData()
+  const navigate = useNavigate()
+  const props = getHostProperties(user.email)
+
+  const allReviewsWithProp = props.flatMap(p => {
+    const revs = getPropertyReviews(p.id)
+    return revs.map(r => ({ ...r, propertyTitle: p.title, propertyId: p.id, propertyImage: p.image }))
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+  const totalRating = allReviewsWithProp.reduce((sum, r) => sum + r.rating, 0)
+  const avgRating = allReviewsWithProp.length > 0 ? (totalRating / allReviewsWithProp.length).toFixed(1) : null
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', margin: 0 }}>Guest Reviews</h2>
+          <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>{allReviewsWithProp.length} review{allReviewsWithProp.length !== 1 ? 's' : ''} across {props.length} propert{props.length !== 1 ? 'ies' : 'y'}</p>
+        </div>
+        {avgRating && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1.5px solid #f0f0f0', borderRadius: 16, padding: '12px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
+            <FaStar style={{ color: '#f59e0b' }} size={22} />
+            <div>
+              <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', lineHeight: 1 }}>{avgRating}</p>
+              <p style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>Avg Rating</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Per-property summary cards */}
+      {props.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 28, marginTop: 20 }}>
+          {props.map(p => {
+            const revs = getPropertyReviews(p.id)
+            const avg = getPropertyAverageRating(p.id)
+            return (
+              <motion.div key={p.id} whileHover={{ y: -3 }}
+                style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #f0f0f0', padding: '14px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', cursor: 'pointer' }}
+                onClick={() => navigate(`/property/${p.id}/reviews`)}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                  <img src={p.image} alt="" style={{ width: 44, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {avg ? (
+                    <>
+                      <FaStar style={{ color: '#f59e0b' }} size={13} />
+                      <span style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>{avg}</span>
+                      <span style={{ fontSize: 12, color: '#9ca3af' }}>· {revs.length} review{revs.length !== 1 ? 's' : ''}</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 12, color: '#9ca3af' }}>No reviews yet</span>
+                  )}
+                </div>
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
+
+      {allReviewsWithProp.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 24px', background: '#fff', borderRadius: 20, border: '1.5px solid #f0f0f0' }}>
+          <FiMessageSquare size={52} style={{ color: '#d1d5db', marginBottom: 12 }} />
+          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 18, color: '#374151', marginBottom: 8 }}>No reviews yet</h3>
+          <p style={{ color: '#9ca3af', fontSize: 14 }}>Guest reviews will appear here once guests book and review your properties.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {allReviewsWithProp.map((r, i) => (
+            <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+              style={{ background: '#fff', borderRadius: 18, border: '1.5px solid #f0f0f0', padding: '16px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                {/* Avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>
+                  {r.avatar || r.userName?.charAt(0)?.toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{r.userName}</span>
+                      <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 8 }}>{r.date}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {[1,2,3,4,5].map(s => <FaStar key={s} size={12} style={{ color: s <= r.rating ? '#f59e0b' : '#e5e7eb' }} />)}
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 6 }}>{r.comment}</p>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', borderRadius: 8, padding: '4px 10px' }}>
+                    <FiHome size={10} style={{ color: '#093880' }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#093880' }}>{r.propertyTitle}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────
 // SECTION: Profile
 // ──────────────────────────────────────────────────
 function ProfileSection({ user, onLogout }) {
@@ -564,6 +671,7 @@ export default function VendorHome() {
       case 'add': return <AddPropertyForm user={user} onSuccess={() => setSection('listings')} />
       case 'listings': return <MyListings user={user} setSection={setSection} />
       case 'bookings': return <HostBookingsSection user={user} />
+      case 'reviews': return <HostReviewsSection user={user} />
       case 'profile': return <ProfileSection user={user} onLogout={handleLogout} />
       default: return null
     }

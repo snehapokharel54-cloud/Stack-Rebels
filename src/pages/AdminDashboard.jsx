@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { FiHome, FiUsers, FiShield, FiActivity, FiLogOut, FiCheck, FiX, FiEye, FiTrash2, FiMenu, FiAlertCircle, FiFileText, FiRefreshCw } from 'react-icons/fi'
+import { FiHome, FiUsers, FiShield, FiActivity, FiLogOut, FiCheck, FiX, FiEye, FiTrash2, FiMenu, FiAlertCircle, FiFileText, FiRefreshCw, FiMessageSquare, FiStar } from 'react-icons/fi'
+import { FaStar } from 'react-icons/fa'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useToast } from '../context/ToastContext'
@@ -10,6 +11,7 @@ const NAV = [
   { id: 'overview', label: 'Overview', icon: FiActivity },
   { id: 'users', label: 'User Management', icon: FiUsers },
   { id: 'properties', label: 'Property Verification', icon: FiShield },
+  { id: 'reviews', label: 'Reviews', icon: FiMessageSquare },
 ]
 
 function StatusBadge({ status }) {
@@ -46,11 +48,12 @@ function OverviewSection({ stats }) {
     <div>
       <h2 style={{ fontFamily: 'Poppins, sans-serif' }} className="text-2xl font-black text-gray-900 mb-2">System Overview</h2>
       <p className="text-sm text-gray-500 mb-6">Platform health and key metrics at a glance.</p>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <StatCard label="Active Users" value={stats.totalUsers} icon={FiUsers} color="#093880" bg="#eff6ff" />
         <StatCard label="Host Accounts" value={stats.totalVendors} icon={FiHome} color="#10b981" bg="#ecfdf5" />
         <StatCard label="Pending Review" value={stats.pendingProperties} icon={FiShield} color="#f59e0b" bg="#fffbeb" />
         <StatCard label="Total Bookings" value={stats.totalBookingsCount} icon={FiActivity} color="#6366f1" bg="#eef2ff" />
+        <StatCard label="Total Reviews" value={stats.totalReviews ?? 0} icon={FiMessageSquare} color="#ec4899" bg="#fdf2f8" />
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
@@ -328,6 +331,156 @@ function PropertyVerificationSection() {
   )
 }
 
+// ─── Admin Reviews Management ────────────────────────────────────────────────
+function AdminReviewsSection() {
+  const { reviews, allProperties, allHostPropertiesRaw } = useAppData()
+  const { showToast } = useToast()
+  const [deleteModal, setDeleteModal] = useState(null)
+  const [filterProp, setFilterProp] = useState('all')
+  const [ratingFilter, setRatingFilter] = useState('all')
+
+  // Build flat list of all reviews with property info
+  const allProps = [...allProperties, ...allHostPropertiesRaw]
+  const allReviews = Object.entries(reviews).flatMap(([propId, propReviews]) => {
+    const prop = allProps.find(p => String(p.id) === String(propId))
+    return (propReviews || []).map(r => ({
+      ...r,
+      propertyTitle: prop?.title || `Property ${propId}`,
+      propertyId: propId,
+      propertyImage: prop?.image,
+    }))
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+  const totalAvg = allReviews.length > 0
+    ? (allReviews.reduce((s, r) => s + r.rating, 0) / allReviews.length).toFixed(1)
+    : null
+
+  const filtered = allReviews.filter(r => {
+    const propMatch = filterProp === 'all' || String(r.propertyId) === String(filterProp)
+    const ratingMatch = ratingFilter === 'all' || r.rating === Number(ratingFilter)
+    return propMatch && ratingMatch
+  })
+
+  // Get context to delete reviews
+  const { setReviewsAdmin } = useAppData()
+
+  const handleDelete = (review) => setDeleteModal(review)
+  const confirmDelete = () => {
+    setReviewsAdmin(deleteModal.propertyId, deleteModal.id)
+    showToast('Review deleted successfully.', 'success')
+    setDeleteModal(null)
+  }
+
+  // Unique property list for filter
+  const propOptions = [...new Map(
+    allReviews.map(r => [String(r.propertyId), { id: r.propertyId, title: r.propertyTitle }])
+  ).values()]
+
+  return (
+    <div>
+      <h2 style={{ fontFamily: 'Poppins, sans-serif' }} className="text-2xl font-black text-gray-900 mb-2">Reviews Management</h2>
+      <p className="text-sm text-gray-500 mb-5">{allReviews.length} total review{allReviews.length !== 1 ? 's' : ''} across all properties</p>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+          <p className="text-3xl font-black text-blue-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{allReviews.length}</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Total Reviews</p>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+          <p className="text-3xl font-black text-amber-500 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{totalAvg || '—'}</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Platform Avg Rating</p>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+          <p className="text-3xl font-black text-green-600 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{propOptions.length}</p>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Properties w/ Reviews</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 mb-5 flex-wrap items-center">
+        <select value={filterProp} onChange={e => setFilterProp(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 bg-white outline-none focus:border-blue-500">
+          <option value="all">All Properties</option>
+          {propOptions.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
+        </select>
+        <select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 bg-white outline-none focus:border-blue-500">
+          <option value="all">All Ratings</option>
+          {[5,4,3,2,1].map(n => <option key={n} value={n}>{'★'.repeat(n)} ({n} star{n !== 1 ? 's' : ''})</option>)}
+        </select>
+        <span className="text-sm text-gray-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-16 text-center">
+          <FiMessageSquare size={44} className="text-gray-200 mx-auto mb-3" />
+          <p className="font-bold text-gray-400 text-lg">No reviews found</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((r, i) => (
+            <motion.div key={r.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex gap-4 items-start">
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)' }}>
+                  {r.avatar || r.userName?.charAt(0)?.toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
+                    <div>
+                      <span className="font-bold text-sm text-gray-900">{r.userName}</span>
+                      <span className="text-xs text-gray-400 ml-2">{r.date}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {[1,2,3,4,5].map(s => <FaStar key={s} size={12} style={{ color: s <= r.rating ? '#f59e0b' : '#e5e7eb' }} />)}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed mb-3">{r.comment}</p>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="inline-flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-1">
+                      <FiHome size={11} style={{ color: '#093880' }} />
+                      <span className="text-xs font-semibold text-blue-800">{r.propertyTitle}</span>
+                    </div>
+                    <button onClick={() => handleDelete(r)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
+                      <FiTrash2 size={11} /> Delete Review
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {deleteModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-50 mx-auto mb-4">
+                <FiAlertCircle size={28} className="text-red-500" />
+              </div>
+              <h3 style={{ fontFamily: 'Poppins, sans-serif' }} className="text-lg font-black text-center text-gray-900 mb-2">Delete Review?</h3>
+              <p className="text-sm text-gray-500 text-center mb-2">Review by <strong>{deleteModal.userName}</strong></p>
+              <p className="text-sm text-gray-400 text-center italic mb-6">"{deleteModal.comment?.slice(0, 80)}{deleteModal.comment?.length > 80 ? '...' : ''}"</p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteModal(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                <button onClick={confirmDelete} className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600">Delete Review</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function AdminDashboard() {
   const { logout } = useAuth()
   const { getAdminStats } = useAppData()
@@ -343,6 +496,7 @@ export default function AdminDashboard() {
       case 'overview': return <OverviewSection stats={stats} />
       case 'users': return <UserManagementSection />
       case 'properties': return <PropertyVerificationSection />
+      case 'reviews': return <AdminReviewsSection />
       default: return null
     }
   }

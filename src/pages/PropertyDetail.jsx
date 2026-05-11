@@ -244,27 +244,31 @@ export default function PropertyDetail() {
 
             {/* Reviews */}
             <div>
+              {/* Section header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 18, color: '#0f172a', margin: 0 }}>Reviews</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: '#0f172a', margin: 0 }}>Reviews</h3>
                   {avgRating && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <FaStar style={{ color: '#f59e0b' }} size={14} />
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>{avgRating}</span>
-                      <span style={{ color: '#6b7280', fontSize: 13 }}>· {liveReviews.length} review{liveReviews.length !== 1 ? 's' : ''}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10, padding: '4px 10px' }}>
+                      <FaStar style={{ color: '#f59e0b' }} size={13} />
+                      <span style={{ fontWeight: 800, fontSize: 14, color: '#111827' }}>{avgRating}</span>
+                      <span style={{ color: '#9ca3af', fontSize: 12 }}>({liveReviews.length})</span>
                     </div>
                   )}
                 </div>
                 <button onClick={() => navigate(`/property/${id}/reviews`)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                  <FiMessageSquare size={13} /> All Reviews
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 16px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  <FiMessageSquare size={14} /> All Reviews
                 </button>
               </div>
 
               {liveReviews.length === 0 ? (
-                <div style={{ background: '#f9fafb', borderRadius: 16, padding: '32px', textAlign: 'center' }}>
-                  <FiStar size={32} style={{ color: '#d1d5db', marginBottom: 8 }} />
-                  <p style={{ color: '#9ca3af', fontSize: 13 }}>No reviews yet. Book this property to leave a review!</p>
+                <div style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: 20, padding: '40px 32px', textAlign: 'center', border: '1.5px solid #e2e8f0' }}>
+                  <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                    <FiStar size={26} style={{ color: '#cbd5e1' }} />
+                  </div>
+                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#374151', marginBottom: 4 }}>No reviews yet</p>
+                  <p style={{ color: '#94a3b8', fontSize: 13 }}>Book this property and be the first to leave a review!</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
@@ -273,14 +277,14 @@ export default function PropertyDetail() {
                   ))}
                   {liveReviews.length > 3 && (
                     <button onClick={() => navigate(`/property/${id}/reviews`)}
-                      style={{ padding: '11px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                      style={{ padding: '13px', borderRadius: 14, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       View all {liveReviews.length} reviews →
                     </button>
                   )}
                 </div>
               )}
 
-              <div style={{ marginTop: 20 }}>
+              <div style={{ marginTop: 24 }}>
                 <ReviewForm propertyId={propIdKey} onSuccess={() => {}} />
               </div>
             </div>

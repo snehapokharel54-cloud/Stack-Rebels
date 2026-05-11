@@ -228,6 +228,14 @@ export function AppDataProvider({ children }) {
     return { ok: true, review: newReview }
   }, [])
 
+  // ─── Admin: Delete a review ──────────────────────────────────────────────
+  const setReviewsAdmin = useCallback((propertyId, reviewId) => {
+    setReviews(prev => ({
+      ...prev,
+      [propertyId]: (prev[propertyId] || []).filter(r => r.id !== reviewId),
+    }))
+  }, [])
+
   // ─── Host CRUD + Approval Flow ──────────────────────────────────────────
   const addHostProperty = useCallback((property, hostId, hostName) => {
     const newProp = {
@@ -392,8 +400,9 @@ export function AppDataProvider({ children }) {
     const totalRevenue = bookings
       .filter(b => b.status === 'confirmed')
       .reduce((sum, b) => sum + (b.totalPrice || 0), 0)
-    return { totalUsers, totalVendors, pendingProperties, approvedProperties, rejectedProperties, totalBookingsCount, totalRevenue }
-  }, [adminUsers, hostProperties, bookings])
+    const totalReviews = Object.values(reviews).reduce((sum, arr) => sum + (arr?.length || 0), 0)
+    return { totalUsers, totalVendors, pendingProperties, approvedProperties, rejectedProperties, totalBookingsCount, totalRevenue, totalReviews }
+  }, [adminUsers, hostProperties, bookings, reviews])
 
   return (
     <AppDataContext.Provider value={{
@@ -422,7 +431,7 @@ export function AppDataProvider({ children }) {
       registerUserInAdmin, getAdminStats,
       // Reviews
       reviews, getPropertyReviews, getPropertyAverageRating,
-      hasUserReviewedProperty, canUserReview, submitReview,
+      hasUserReviewedProperty, canUserReview, submitReview, setReviewsAdmin,
     }}>
       {children}
     </AppDataContext.Provider>
