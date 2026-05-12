@@ -19,7 +19,7 @@ export const getReceivedReviews = async (req, res) => {
        WHERE l.host_id = $1
        ORDER BY r.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [hostId, limit, offset]
+      [hostId, limit, offset],
     );
 
     // Get stats
@@ -30,13 +30,13 @@ export const getReceivedReviews = async (req, res) => {
        FROM reviews r
        JOIN listings l ON r.property_id = l.id
        WHERE l.host_id = $1`,
-      [hostId]
+      [hostId],
     );
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: result.rows,
-      stats: stats.rows[0]
+      stats: stats.rows[0],
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -48,7 +48,13 @@ export const getReceivedReviews = async (req, res) => {
  * Respond to a guest's review
  */
 export const replyToReview = async (req, res) => {
-  res.status(501).json({ success: false, message: "Host replies to reviews are not currently supported by the database." });
+  res
+    .status(501)
+    .json({
+      success: false,
+      message:
+        "Host replies to reviews are not currently supported by the database.",
+    });
 };
 
 /**
@@ -56,5 +62,9 @@ export const replyToReview = async (req, res) => {
  * (Placeholder for future feature: Host rating a guest)
  */
 export const rateGuest = async (req, res) => {
-  res.json({ success: true, message: "Guest rated successfully (Placeholder)." });
+  res.json({
+    success: true,
+    message: "Guest rated successfully (Placeholder).",
+  });
 };
+

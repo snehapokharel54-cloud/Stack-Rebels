@@ -22,7 +22,8 @@ export const uploadMedia = async (req, res) => {
     if (!allowedMimetypes.includes(file.mimetype)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+        message:
+          "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
         errors: [{ field: "file", message: "Unsupported image format." }],
       });
     }
@@ -63,3 +64,4 @@ export const uploadMedia = async (req, res) => {
     });
   }
 };
+

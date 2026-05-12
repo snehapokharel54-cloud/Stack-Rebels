@@ -7,15 +7,15 @@ import dns from "dns";
  * actually exists and has mail servers (MX records) configured.
  */
 const checkEmailDomain = async (email) => {
-  const domain = email.split('@')[1];
+  const domain = email.split("@")[1];
   if (!domain) return Promise.reject("Invalid email domain.");
-  
+
   try {
     const addresses = await dns.promises.resolveMx(domain);
-    
+
     // RFC 7505: A null MX record (exchange: '') means the domain explicitly declines all emails!
-    const isNullMx = addresses.length === 1 && addresses[0].exchange === '';
-    
+    const isNullMx = addresses.length === 1 && addresses[0].exchange === "";
+
     if (!addresses || addresses.length === 0 || isNullMx) {
       return Promise.reject("Email domain cannot receive emails.");
     }

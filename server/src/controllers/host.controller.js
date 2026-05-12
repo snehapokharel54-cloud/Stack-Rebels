@@ -32,13 +32,16 @@ export const getStats = async (req, res) => {
           COUNT(CASE WHEN status = 'PUBLISHED' THEN 1 END) as published_listings,
           COUNT(CASE WHEN status = 'DRAFT' THEN 1 END) as draft_listings
         FROM listings WHERE host_id = $1`,
-        [hostId]
+        [hostId],
       );
 
       if (statsResult.rows[0]) {
-        stats.total_listings = parseInt(statsResult.rows[0].total_listings) || 0;
-        stats.published_listings = parseInt(statsResult.rows[0].published_listings) || 0;
-        stats.draft_listings = parseInt(statsResult.rows[0].draft_listings) || 0;
+        stats.total_listings =
+          parseInt(statsResult.rows[0].total_listings) || 0;
+        stats.published_listings =
+          parseInt(statsResult.rows[0].published_listings) || 0;
+        stats.draft_listings =
+          parseInt(statsResult.rows[0].draft_listings) || 0;
       }
     } catch (error) {
       console.error("Error fetching listing stats:", error.message);
@@ -53,14 +56,18 @@ export const getStats = async (req, res) => {
          JOIN listings l ON b.listing_id = l.id
          WHERE l.host_id = $1 
          AND DATE_TRUNC('month', b.created_at) = DATE_TRUNC('month', NOW())`,
-        [hostId]
+        [hostId],
       );
 
       if (earningsResult.rows[0]) {
-        stats.monthly_earnings = parseFloat(earningsResult.rows[0].monthly_earnings) || 0;
+        stats.monthly_earnings =
+          parseFloat(earningsResult.rows[0].monthly_earnings) || 0;
       }
     } catch (error) {
-      console.warn("Bookings table not available yet, skipping earnings calc:", error.message);
+      console.warn(
+        "Bookings table not available yet, skipping earnings calc:",
+        error.message,
+      );
       // Continue with zero earnings
     }
 
@@ -70,14 +77,18 @@ export const getStats = async (req, res) => {
          FROM bookings b
          JOIN listings l ON b.listing_id = l.id
          WHERE l.host_id = $1`,
-        [hostId]
+        [hostId],
       );
 
       if (bookingsCount.rows[0]) {
-        stats.total_bookings = parseInt(bookingsCount.rows[0].total_bookings) || 0;
+        stats.total_bookings =
+          parseInt(bookingsCount.rows[0].total_bookings) || 0;
       }
     } catch (error) {
-      console.warn("Bookings table not available yet, skipping bookings count:", error.message);
+      console.warn(
+        "Bookings table not available yet, skipping bookings count:",
+        error.message,
+      );
       // Continue with zero bookings
     }
 
@@ -117,7 +128,7 @@ export const getDashboard = async (req, res) => {
         COUNT(CASE WHEN status = 'PUBLISHED' THEN 1 END) as published_listings,
         COUNT(CASE WHEN status = 'DRAFT' THEN 1 END) as draft_listings
       FROM listings WHERE host_id = $1`,
-      [hostId]
+      [hostId],
     );
 
     const stats = statsResult.rows[0];
@@ -132,11 +143,14 @@ export const getDashboard = async (req, res) => {
          WHERE l.host_id = $1
          ORDER BY b.created_at DESC
          LIMIT 5`,
-        [hostId]
+        [hostId],
       );
       recentBookings = bookingsResult.rows;
     } catch (err) {
-      console.warn("Bookings table not available yet, using empty bookings list:", err.message);
+      console.warn(
+        "Bookings table not available yet, using empty bookings list:",
+        err.message,
+      );
     }
 
     // Try to get earnings this month
@@ -147,11 +161,14 @@ export const getDashboard = async (req, res) => {
          JOIN listings l ON b.listing_id = l.id
          WHERE l.host_id = $1 
          AND DATE_TRUNC('month', b.created_at) = DATE_TRUNC('month', NOW())`,
-        [hostId]
+        [hostId],
       );
       monthlyEarnings = parseFloat(earningsResult.rows[0].monthly_earnings);
     } catch (err) {
-      console.warn("Bookings table not available yet, using zero earnings:", err.message);
+      console.warn(
+        "Bookings table not available yet, using zero earnings:",
+        err.message,
+      );
     }
 
     res.json({
@@ -168,7 +185,12 @@ export const getDashboard = async (req, res) => {
     });
   } catch (error) {
     console.error("Dashboard error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch dashboard: " + error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to fetch dashboard: " + error.message,
+      });
   }
 };
 
@@ -182,17 +204,21 @@ export const getProfile = async (req, res) => {
 
     const result = await db.query(
       `SELECT id, email, full_name, phone, created_at, updated_at FROM users WHERE id = $1 AND role = 'host'`,
-      [hostId]
+      [hostId],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Host not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Host not found" });
     }
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error("Profile fetch error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch profile" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch profile" });
   }
 };
 
@@ -209,17 +235,25 @@ export const updateProfile = async (req, res) => {
       `UPDATE users SET full_name = $1, phone = $2, updated_at = NOW()
        WHERE id = $3 AND role = 'host'
        RETURNING id, email, full_name, phone, created_at, updated_at`,
-      [full_name, phone, hostId]
+      [full_name, phone, hostId],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Host not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Host not found" });
     }
 
-    res.json({ success: true, data: result.rows[0], message: "Profile updated successfully" });
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: "Profile updated successfully",
+    });
   } catch (error) {
     console.error("Profile update error:", error);
-    res.status(500).json({ success: false, message: "Failed to update profile" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to update profile" });
   }
 };
 
@@ -244,7 +278,7 @@ export const getEarnings = async (req, res) => {
        FROM bookings b 
        JOIN listings l ON b.listing_id = l.id
        WHERE l.host_id = $1 AND b.payment_status = 'paid'`,
-      [hostId]
+      [hostId],
     );
 
     // Monthly revenue (paid bookings, current year)
@@ -258,7 +292,7 @@ export const getEarnings = async (req, res) => {
          AND b.created_at >= DATE_TRUNC('year', NOW())
        GROUP BY month_num, label
        ORDER BY month_num`,
-      [hostId]
+      [hostId],
     );
 
     // Monthly booking count (all bookings, current year)
@@ -272,15 +306,32 @@ export const getEarnings = async (req, res) => {
          AND b.created_at >= DATE_TRUNC('year', NOW())
        GROUP BY month_num, label
        ORDER BY month_num`,
-      [hostId]
+      [hostId],
     );
 
     // Build complete monthly array (Jan–Dec) filling gaps with 0
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const revenueMap = {};
     const bookingsMap = {};
-    revenueRes.rows.forEach(r => { revenueMap[r.month_num] = Number(r.revenue) });
-    bookingsRes.rows.forEach(r => { bookingsMap[r.month_num] = Number(r.bookings) });
+    revenueRes.rows.forEach((r) => {
+      revenueMap[r.month_num] = Number(r.revenue);
+    });
+    bookingsRes.rows.forEach((r) => {
+      bookingsMap[r.month_num] = Number(r.bookings);
+    });
 
     const currentMonth = new Date().getMonth() + 1; // 1-indexed
     const monthly_data = [];
@@ -291,17 +342,17 @@ export const getEarnings = async (req, res) => {
         bookings: bookingsMap[m] || 0,
       });
     }
-    
+
     // Calculate occupancy rate
     const totalListings = await db.query(
       `SELECT COUNT(*) FROM listings WHERE host_id = $1 AND status = 'PUBLISHED'`,
-      [hostId]
+      [hostId],
     );
     const bookedListings = await db.query(
       `SELECT COUNT(DISTINCT b.listing_id) FROM bookings b
        JOIN listings l ON b.listing_id = l.id
        WHERE l.host_id = $1 AND b.status = 'CONFIRMED' AND b.check_out >= NOW()`,
-      [hostId]
+      [hostId],
     );
 
     const total = parseInt(totalListings.rows[0].count) || 1;
@@ -318,7 +369,12 @@ export const getEarnings = async (req, res) => {
     });
   } catch (error) {
     console.error("Earnings fetch error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch earnings: " + error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to fetch earnings: " + error.message,
+      });
   }
 };
 
@@ -363,7 +419,10 @@ export const getBookings = async (req, res) => {
       offset: parseInt(offset),
     });
   } catch (error) {
-    console.warn("Bookings fetch error (table may not exist yet):", error.message);
+    console.warn(
+      "Bookings fetch error (table may not exist yet):",
+      error.message,
+    );
     // Return empty bookings list if table doesn't exist
     res.json({
       success: true,
@@ -387,7 +446,7 @@ export const getListingAnalytics = async (req, res) => {
     // Verify ownership
     const ownerCheck = await db.query(
       `SELECT id FROM listings WHERE id = $1 AND host_id = $2`,
-      [listingId, hostId]
+      [listingId, hostId],
     );
 
     if (ownerCheck.rows.length === 0) {
@@ -401,7 +460,7 @@ export const getListingAnalytics = async (req, res) => {
         AVG(CAST(rating AS FLOAT)) as avg_rating,
         COUNT(CASE WHEN status = 'CONFIRMED' THEN 1 END) as confirmed_bookings
        FROM bookings WHERE listing_id = $1`,
-      [listingId]
+      [listingId],
     );
 
     // Get views and inquiries
@@ -410,7 +469,7 @@ export const getListingAnalytics = async (req, res) => {
         COUNT(*) as views,
         COUNT(CASE WHEN type = 'inquiry' THEN 1 END) as inquiries
        FROM listing_engagement WHERE listing_id = $1`,
-      [listingId]
+      [listingId],
     );
 
     const stats = statsResult.rows[0];
@@ -420,7 +479,9 @@ export const getListingAnalytics = async (req, res) => {
       success: true,
       data: {
         total_bookings: parseInt(stats.total_bookings),
-        avg_rating: stats.avg_rating ? parseFloat(stats.avg_rating).toFixed(2) : 0,
+        avg_rating: stats.avg_rating
+          ? parseFloat(stats.avg_rating).toFixed(2)
+          : 0,
         confirmed_bookings: parseInt(stats.confirmed_bookings),
         views: parseInt(engagement.views),
         inquiries: parseInt(engagement.inquiries),
@@ -428,7 +489,9 @@ export const getListingAnalytics = async (req, res) => {
     });
   } catch (error) {
     console.error("Analytics error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch analytics" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch analytics" });
   }
 };
 
@@ -446,7 +509,7 @@ export const acceptBooking = async (req, res) => {
       `SELECT b.id FROM bookings b
        JOIN listings l ON b.listing_id = l.id
        WHERE b.id = $1 AND l.host_id = $2`,
-      [bookingId, hostId]
+      [bookingId, hostId],
     );
 
     if (verifyResult.rows.length === 0) {
@@ -457,13 +520,19 @@ export const acceptBooking = async (req, res) => {
       `UPDATE bookings SET status = 'CONFIRMED', updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [bookingId]
+      [bookingId],
     );
 
-    res.json({ success: true, data: result.rows[0], message: "Booking accepted" });
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: "Booking accepted",
+    });
   } catch (error) {
     console.error("Accept booking error:", error);
-    res.status(500).json({ success: false, message: "Failed to accept booking" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to accept booking" });
   }
 };
 
@@ -482,7 +551,7 @@ export const declineBooking = async (req, res) => {
       `SELECT b.id FROM bookings b
        JOIN listings l ON b.listing_id = l.id
        WHERE b.id = $1 AND l.host_id = $2`,
-      [bookingId, hostId]
+      [bookingId, hostId],
     );
 
     if (verifyResult.rows.length === 0) {
@@ -493,12 +562,19 @@ export const declineBooking = async (req, res) => {
       `UPDATE bookings SET status = 'REJECTED', cancellation_reason = $2, updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [bookingId, reason]
+      [bookingId, reason],
     );
 
-    res.json({ success: true, data: result.rows[0], message: "Booking declined" });
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: "Booking declined",
+    });
   } catch (error) {
     console.error("Decline booking error:", error);
-    res.status(500).json({ success: false, message: "Failed to decline booking" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to decline booking" });
   }
 };
+

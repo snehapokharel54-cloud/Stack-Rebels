@@ -11,9 +11,9 @@ import {
   acceptBooking,
   declineBooking,
 } from "../controllers/host.controller.js";
-import { 
-  submitPropertyVerification, 
-  getPropertyVerificationStatus 
+import {
+  submitPropertyVerification,
+  getPropertyVerificationStatus,
 } from "../controllers/host.verification.controller.js";
 import upload from "../middlewares/upload.js";
 
@@ -80,7 +80,11 @@ router.post("/listings/:id/decline-booking", declineBooking);
  * POST /v1/host/property-verification/:listingId
  * Submit KYC documents
  */
-router.post("/property-verification/:listingId", upload.any(), submitPropertyVerification);
+router.post(
+  "/property-verification/:listingId",
+  upload.any(),
+  submitPropertyVerification,
+);
 
 /**
  * GET /v1/host/property-verification/:listingId

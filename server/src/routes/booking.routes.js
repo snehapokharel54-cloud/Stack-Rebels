@@ -1,6 +1,15 @@
-
 import { Router } from "express";
-import { createBooking, getGuestBookings, getBookingDetails, cancelGuestBooking, getBookingPriceBreakdown, getIncomingRequests, acceptBooking, declineBooking, cancelHostBooking } from "../controllers/booking.controller.js";
+import {
+  createBooking,
+  getGuestBookings,
+  getBookingDetails,
+  cancelGuestBooking,
+  getBookingPriceBreakdown,
+  getIncomingRequests,
+  acceptBooking,
+  declineBooking,
+  cancelHostBooking,
+} from "../controllers/booking.controller.js";
 import { verifyUser, verifyHost } from "../middlewares/authenticate.js";
 
 const router = Router();
@@ -15,4 +24,4 @@ router.patch("/:id/decline", verifyHost, declineBooking);
 router.patch("/:id/host-cancel", verifyHost, cancelHostBooking);
 
 export default router;
-      
+

@@ -8,7 +8,12 @@ let transporter = null;
 
 try {
   // Check if SMTP settings are configured
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  if (
+    process.env.SMTP_HOST &&
+    process.env.SMTP_PORT &&
+    process.env.SMTP_USER &&
+    process.env.SMTP_PASS
+  ) {
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT, 10),
@@ -21,10 +26,15 @@ try {
       socketTimeout: 5000,
     });
   } else {
-    console.warn("[WARN] SMTP configuration incomplete - email sending will be disabled");
+    console.warn(
+      "[WARN] SMTP configuration incomplete - email sending will be disabled",
+    );
   }
 } catch (error) {
-  console.error("[ERROR] Failed to initialize email transporter:", error.message);
+  console.error(
+    "[ERROR] Failed to initialize email transporter:",
+    error.message,
+  );
 }
 
 /**
@@ -35,12 +45,14 @@ try {
  */
 export const sendVerificationEmail = async (email, verificationToken) => {
   if (!transporter) {
-    console.warn("[WARN] Email transporter not configured, skipping verification email");
+    console.warn(
+      "[WARN] Email transporter not configured, skipping verification email",
+    );
     return;
   }
   try {
     const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
-    
+
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
@@ -73,12 +85,14 @@ export const sendVerificationEmail = async (email, verificationToken) => {
  */
 export const sendResetEmail = async (email, resetToken) => {
   if (!transporter) {
-    console.warn("[WARN] Email transporter not configured, skipping reset email");
+    console.warn(
+      "[WARN] Email transporter not configured, skipping reset email",
+    );
     return;
   }
   try {
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
-    
+
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
@@ -112,7 +126,9 @@ export const sendResetEmail = async (email, resetToken) => {
  */
 export const sendHostWelcomeEmail = async (email, hostName) => {
   if (!transporter) {
-    console.warn("[WARN] Email transporter not configured, skipping welcome email");
+    console.warn(
+      "[WARN] Email transporter not configured, skipping welcome email",
+    );
     return;
   }
   try {
@@ -348,12 +364,22 @@ export const sendHostWelcomeEmail = async (email, hostName) => {
  */
 export const sendBookingConfirmationEmail = async (email, bookingData) => {
   if (!transporter) {
-    console.warn("[WARN] Email transporter not configured, skipping booking confirmation email");
+    console.warn(
+      "[WARN] Email transporter not configured, skipping booking confirmation email",
+    );
     return;
   }
   try {
-    const { guest_name, listing_title, check_in, check_out, total_amount, booking_id, host_phone } = bookingData;
-    
+    const {
+      guest_name,
+      listing_title,
+      check_in,
+      check_out,
+      total_amount,
+      booking_id,
+      host_phone,
+    } = bookingData;
+
     // Default basic rules if not provided
     const basicRules = `
       <ul style="margin-top: 5px; padding-left: 20px;">
@@ -363,7 +389,7 @@ export const sendBookingConfirmationEmail = async (email, bookingData) => {
         <li>Please keep the property clean and tidy.</li>
       </ul>
     `;
-    
+
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
@@ -385,7 +411,7 @@ export const sendBookingConfirmationEmail = async (email, bookingData) => {
               <p style="margin: 5px 0;"><strong>Check-in:</strong> ${new Date(check_in).toLocaleDateString()}</p>
               <p style="margin: 5px 0;"><strong>Check-out:</strong> ${new Date(check_out).toLocaleDateString()}</p>
               <p style="margin: 5px 0;"><strong>Total Paid:</strong> NPR ${total_amount}</p>
-              <p style="margin: 5px 0;"><strong>Host Phone:</strong> ${host_phone || 'Not provided'}</p>
+              <p style="margin: 5px 0;"><strong>Host Phone:</strong> ${host_phone || "Not provided"}</p>
             </div>
             
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #f59e0b;">
@@ -422,12 +448,22 @@ export const sendBookingConfirmationEmail = async (email, bookingData) => {
  */
 export const sendHostNewBookingEmail = async (email, bookingData) => {
   if (!transporter) {
-    console.warn("[WARN] Email transporter not configured, skipping new booking email to host");
+    console.warn(
+      "[WARN] Email transporter not configured, skipping new booking email to host",
+    );
     return;
   }
   try {
-    const { host_name, guest_name, listing_title, check_in, check_out, total_amount, booking_id } = bookingData;
-    
+    const {
+      host_name,
+      guest_name,
+      listing_title,
+      check_in,
+      check_out,
+      total_amount,
+      booking_id,
+    } = bookingData;
+
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: email,
@@ -495,7 +531,9 @@ export const sendBookingRejectionEmail = async (email, data) => {
         </div>
       `,
     });
-  } catch (error) { console.error("Error sending rejection email:", error); }
+  } catch (error) {
+    console.error("Error sending rejection email:", error);
+  }
 };
 
 /**
@@ -520,7 +558,9 @@ export const sendHostCancellationEmailToGuest = async (email, data) => {
         </div>
       `,
     });
-  } catch (error) { console.error("Error sending host cancellation email:", error); }
+  } catch (error) {
+    console.error("Error sending host cancellation email:", error);
+  }
 };
 
 /**
@@ -545,7 +585,9 @@ export const sendGuestCancellationEmailToHost = async (email, data) => {
         </div>
       `,
     });
-  } catch (error) { console.error("Error sending guest cancellation email to host:", error); }
+  } catch (error) {
+    console.error("Error sending guest cancellation email to host:", error);
+  }
 };
 
 /**
@@ -568,5 +610,7 @@ export const sendGuestCancellationEmailToGuest = async (email, data) => {
         </div>
       `,
     });
-  } catch (error) { console.error("Error sending cancellation confirmation to guest:", error); }
+  } catch (error) {
+    console.error("Error sending cancellation confirmation to guest:", error);
+  }
 };

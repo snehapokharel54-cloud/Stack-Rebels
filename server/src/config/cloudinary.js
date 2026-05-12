@@ -28,7 +28,7 @@ if (isConfigured) {
   });
 } else {
   console.warn(
-    "[WARN] Cloudinary credentials not configured — image uploads will be disabled."
+    "[WARN] Cloudinary credentials not configured — image uploads will be disabled.",
   );
 }
 
@@ -41,7 +41,7 @@ if (isConfigured) {
 const uploadImage = async (source, options = {}) => {
   if (!isConfigured) {
     throw new Error(
-      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file."
+      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file.",
     );
   }
 
@@ -56,7 +56,7 @@ const uploadImage = async (source, options = {}) => {
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
-        }
+        },
       );
 
       Readable.from(source).pipe(uploadStream);
@@ -71,7 +71,7 @@ const uploadImage = async (source, options = {}) => {
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
-        }
+        },
       );
     }
   });

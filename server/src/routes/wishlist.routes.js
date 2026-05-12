@@ -1,6 +1,12 @@
-
 import { Router } from "express";
-import { createWishlist, getWishlists, addListingToWishlist, removeListingFromWishlist, shareWishlist, deleteWishlist } from "../controllers/wishlist.controller.js";
+import {
+  createWishlist,
+  getWishlists,
+  addListingToWishlist,
+  removeListingFromWishlist,
+  shareWishlist,
+  deleteWishlist,
+} from "../controllers/wishlist.controller.js";
 import { verifyUser } from "../middlewares/authenticate.js";
 
 const router = Router();
@@ -13,4 +19,3 @@ router.patch("/:id/share", shareWishlist);
 router.delete("/:id", deleteWishlist);
 
 export default router;
-      

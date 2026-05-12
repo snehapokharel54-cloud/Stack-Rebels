@@ -1,6 +1,41 @@
-
 import { Router } from "express";
-import { getGeneralDashboard, getRevenueAnalytics, getListingAnalytics, getUserAnalytics, getUsers, getUserDetail, suspendUser, deleteUser, getHosts, verifyHost, suspendHost, getPendingKyc, approveKyc, rejectKyc, getKycDocuments, getListingsAdmin, suspendListing, deleteListingAdmin, getReviewsAdmin, deleteReviewAdmin, getFeeConfig, updateFeeConfig, addCustomFeeRule, getDisputes, getDisputeDetail, resolveDispute, updateDisputeStatus, getTaxRules, addTaxRule, updateTaxRule, deleteTaxRule, getPlatformPayments, getPaymentDetail, triggerPayout, getAdminPayouts } from "../controllers/admin.dashboard.controller.js";
+import {
+  getGeneralDashboard,
+  getRevenueAnalytics,
+  getListingAnalytics,
+  getUserAnalytics,
+  getUsers,
+  getUserDetail,
+  suspendUser,
+  deleteUser,
+  getHosts,
+  verifyHost,
+  suspendHost,
+  getPendingKyc,
+  approveKyc,
+  rejectKyc,
+  getKycDocuments,
+  getListingsAdmin,
+  suspendListing,
+  deleteListingAdmin,
+  getReviewsAdmin,
+  deleteReviewAdmin,
+  getFeeConfig,
+  updateFeeConfig,
+  addCustomFeeRule,
+  getDisputes,
+  getDisputeDetail,
+  resolveDispute,
+  updateDisputeStatus,
+  getTaxRules,
+  addTaxRule,
+  updateTaxRule,
+  deleteTaxRule,
+  getPlatformPayments,
+  getPaymentDetail,
+  triggerPayout,
+  getAdminPayouts,
+} from "../controllers/admin.dashboard.controller.js";
 import { verifyUser } from "../middlewares/authenticate.js";
 
 const router = Router();
@@ -52,4 +87,4 @@ router.post("/payouts/trigger", triggerPayout);
 router.get("/payouts", getAdminPayouts);
 
 export default router;
-      
+

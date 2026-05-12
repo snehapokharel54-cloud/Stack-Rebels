@@ -8,7 +8,7 @@ export const getEarnings = async (req, res) => {
     const earningsRes = await query(
       `SELECT COALESCE(SUM(b.total_price), 0) as total_earnings
        FROM bookings b WHERE b.host_id = $1 AND b.payment_status = 'paid'`,
-      [hostId]
+      [hostId],
     );
 
     // Monthly revenue (paid bookings, last 12 months)
@@ -21,7 +21,7 @@ export const getEarnings = async (req, res) => {
          AND b.created_at >= DATE_TRUNC('year', NOW())
        GROUP BY month_num, label
        ORDER BY month_num`,
-      [hostId]
+      [hostId],
     );
 
     // Monthly booking count (all bookings, last 12 months)
@@ -34,15 +34,32 @@ export const getEarnings = async (req, res) => {
          AND b.created_at >= DATE_TRUNC('year', NOW())
        GROUP BY month_num, label
        ORDER BY month_num`,
-      [hostId]
+      [hostId],
     );
 
     // Build complete monthly array (Jan–Dec) filling gaps with 0
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const revenueMap = {};
     const bookingsMap = {};
-    revenueRes.rows.forEach(r => { revenueMap[r.month_num] = Number(r.revenue) });
-    bookingsRes.rows.forEach(r => { bookingsMap[r.month_num] = Number(r.bookings) });
+    revenueRes.rows.forEach((r) => {
+      revenueMap[r.month_num] = Number(r.revenue);
+    });
+    bookingsRes.rows.forEach((r) => {
+      bookingsMap[r.month_num] = Number(r.bookings);
+    });
 
     const currentMonth = new Date().getMonth() + 1; // 1-indexed
     const monthly_data = [];
@@ -57,12 +74,12 @@ export const getEarnings = async (req, res) => {
     // Occupancy rate
     const totalListings = await query(
       `SELECT COUNT(*) FROM listings WHERE host_id = $1 AND status = 'PUBLISHED'`,
-      [hostId]
+      [hostId],
     );
     const bookedListings = await query(
       `SELECT COUNT(DISTINCT listing_id) FROM bookings
        WHERE host_id = $1 AND status = 'CONFIRMED' AND check_out >= NOW()`,
-      [hostId]
+      [hostId],
     );
 
     const total = parseInt(totalListings.rows[0].count) || 1;
@@ -83,7 +100,9 @@ export const getEarnings = async (req, res) => {
 };
 
 export const requestPayout = async (req, res) => {
-  res.status(501).json({ success: false, message: "Payout requests coming soon." });
+  res
+    .status(501)
+    .json({ success: false, message: "Payout requests coming soon." });
 };
 
 export const getPayoutHistory = async (req, res) => {
@@ -91,9 +110,12 @@ export const getPayoutHistory = async (req, res) => {
 };
 
 export const setupBankAccount = async (req, res) => {
-  res.status(501).json({ success: false, message: "Bank account setup coming soon." });
+  res
+    .status(501)
+    .json({ success: false, message: "Bank account setup coming soon." });
 };
 
 export const getBankAccount = async (req, res) => {
   res.json({ success: true, data: null });
 };
+

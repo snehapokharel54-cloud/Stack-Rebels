@@ -54,14 +54,20 @@ const authenticate = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ success: false, message: "Access denied. No token provided." });
+      return res
+        .status(401)
+        .json({ success: false, message: "Access denied. No token provided." });
     }
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ success: false, message: "Invalid or expired token." });
+    res
+      .status(401)
+      .json({ success: false, message: "Invalid or expired token." });
   }
 };
 

@@ -1,6 +1,9 @@
 import Stripe from "stripe";
 import { query } from "../config/db.js";
-import { sendBookingConfirmationEmail, sendHostNewBookingEmail } from "../utils/mailer.js";
+import {
+  sendBookingConfirmationEmail,
+  sendHostNewBookingEmail,
+} from "../utils/mailer.js";
 import { sendPushNotification } from "../utils/firebase.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -16,21 +19,25 @@ export const initiatePayment = async (req, res) => {
     const { booking_id } = req.body;
 
     if (!booking_id) {
-      return res.status(400).json({ success: false, message: "booking_id is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "booking_id is required" });
     }
 
-    // 1. Fetch the booking 
+    // 1. Fetch the booking
     const bookingResult = await query(
       `SELECT b.id, b.guest_id, b.listing_id, b.status, b.payment_status,
               b.price_breakdown, l.title as listing_title
        FROM bookings b
        JOIN listings l ON b.listing_id = l.id
        WHERE b.id = $1`,
-      [booking_id]
+      [booking_id],
     );
 
     if (bookingResult.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found" });
     }
 
     const booking = bookingResult.rows[0];
@@ -40,25 +47,31 @@ export const initiatePayment = async (req, res) => {
     }
 
     if (booking.payment_status === "paid") {
-      return res.status(400).json({ success: false, message: "Booking is already paid" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Booking is already paid" });
     }
 
     // 2. Extract amount
-    const priceBreakdown = typeof booking.price_breakdown === "string"
-      ? JSON.parse(booking.price_breakdown)
-      : booking.price_breakdown;
+    const priceBreakdown =
+      typeof booking.price_breakdown === "string"
+        ? JSON.parse(booking.price_breakdown)
+        : booking.price_breakdown;
 
     const totalNPR = priceBreakdown?.total || 0;
     const NPR_TO_USD_RATE = 133;
-    const amountUSDCents = Math.max(50, Math.round((totalNPR / NPR_TO_USD_RATE) * 100));
+    const amountUSDCents = Math.max(
+      50,
+      Math.round((totalNPR / NPR_TO_USD_RATE) * 100),
+    );
 
     // 3. Create Checkout Session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: "usd",
             product_data: {
               name: `Stay at ${booking.listing_title}`,
               description: `Booking for ${booking.listing_title}`,
@@ -68,9 +81,9 @@ export const initiatePayment = async (req, res) => {
           quantity: 1,
         },
       ],
-      mode: 'payment',
-      success_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment-success?gateway=stripe&session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
-      cancel_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/property/${booking.listing_id}?payment_cancelled=true`,
+      mode: "payment",
+      success_url: `${process.env.CLIENT_URL || "http://localhost:5173"}/payment-success?gateway=stripe&session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
+      cancel_url: `${process.env.CLIENT_URL || "http://localhost:5173"}/property/${booking.listing_id}?payment_cancelled=true`,
       metadata: {
         booking_id: booking.id,
         user_id: userId,
@@ -83,7 +96,13 @@ export const initiatePayment = async (req, res) => {
        VALUES ($1, $2, $3, 'INITIALIZED', 'stripe', $4, $5)
        ON CONFLICT (booking_id) DO UPDATE
        SET stripe_payment_intent_id = $5, gateway = 'stripe', status = 'INITIALIZED', updated_at = NOW()`,
-      [booking.id, userId, (amountUSDCents / 100).toFixed(2), totalNPR, session.id]
+      [
+        booking.id,
+        userId,
+        (amountUSDCents / 100).toFixed(2),
+        totalNPR,
+        session.id,
+      ],
     );
 
     res.json({
@@ -108,7 +127,13 @@ export const verifyPayment = async (req, res) => {
     const { booking_id, payment_intent_id, session_id } = req.body;
 
     if (!booking_id || (!payment_intent_id && !session_id)) {
-      return res.status(400).json({ success: false, message: "booking_id and either payment_intent_id or session_id are required" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "booking_id and either payment_intent_id or session_id are required",
+        });
     }
 
     let pIntentId = payment_intent_id;
@@ -120,7 +145,12 @@ export const verifyPayment = async (req, res) => {
     }
 
     if (!pIntentId) {
-       return res.status(400).json({ success: false, message: "Could not find a valid payment intent for this session." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Could not find a valid payment intent for this session.",
+        });
     }
 
     // 2. Verify with Stripe that payment actually succeeded
@@ -137,19 +167,20 @@ export const verifyPayment = async (req, res) => {
     await query(
       `UPDATE bookings SET payment_status = 'paid', status = 'CONFIRMED', updated_at = NOW()
        WHERE id = $1 AND guest_id = $2`,
-      [booking_id, userId]
+      [booking_id, userId],
     );
 
     // 4. Update payment record (handle both PI and Session lookup)
     await query(
       `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $2, updated_at = NOW()
        WHERE booking_id = $1`,
-      [booking_id, pIntentId]
+      [booking_id, pIntentId],
     );
 
     // 5. Send Confirmation Email & Notifications
     try {
-      const emailQuery = await query(`
+      const emailQuery = await query(
+        `
         SELECT b.id, b.check_in, b.check_out, b.price_breakdown, b.host_id, b.guest_id,
                l.title as listing_title, 
                u.email as guest_email, u.full_name as guest_name,
@@ -159,57 +190,75 @@ export const verifyPayment = async (req, res) => {
         JOIN users u ON b.guest_id = u.id
         JOIN users h ON b.host_id = h.id
         WHERE b.id = $1
-      `, [booking_id]);
+      `,
+        [booking_id],
+      );
 
       if (emailQuery.rows.length > 0) {
         const bd = emailQuery.rows[0];
-        const pb = typeof bd.price_breakdown === 'string' ? JSON.parse(bd.price_breakdown) : bd.price_breakdown;
+        const pb =
+          typeof bd.price_breakdown === "string"
+            ? JSON.parse(bd.price_breakdown)
+            : bd.price_breakdown;
         const totalPaid = pb?.total || 0;
 
         // DB Notifications
         const guestMsg = `Your booking for ${bd.listing_title} (${new Date(bd.check_in).toLocaleDateString()} to ${new Date(bd.check_out).toLocaleDateString()}) is confirmed!`;
         await query(
           "INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)",
-          [bd.guest_id, "Booking Confirmed", guestMsg, "booking"]
+          [bd.guest_id, "Booking Confirmed", guestMsg, "booking"],
         );
-        
+
         const hostMsg = `New booking!\n${bd.guest_name} booked ${bd.listing_title} for ${new Date(bd.check_in).toLocaleDateString()} to ${new Date(bd.check_out).toLocaleDateString()}.`;
         await query(
           "INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)",
-          [bd.host_id, "New Booking Received", hostMsg, "booking"]
+          [bd.host_id, "New Booking Received", hostMsg, "booking"],
         );
 
         // Emails
         await sendBookingConfirmationEmail(bd.guest_email, {
-          guest_name: bd.guest_name || 'Guest',
+          guest_name: bd.guest_name || "Guest",
           listing_title: bd.listing_title,
           check_in: bd.check_in,
           check_out: bd.check_out,
           total_amount: totalPaid,
           booking_id: bd.id,
-          host_phone: bd.host_phone
+          host_phone: bd.host_phone,
         });
 
         await sendHostNewBookingEmail(bd.host_email, {
           host_name: bd.host_name,
-          guest_name: bd.guest_name || 'Guest',
+          guest_name: bd.guest_name || "Guest",
           listing_title: bd.listing_title,
           check_in: bd.check_in,
           check_out: bd.check_out,
           total_amount: totalPaid,
-          booking_id: bd.id
+          booking_id: bd.id,
         });
 
         // Firebase Push
         if (bd.guest_fcm) {
-          await sendPushNotification(bd.guest_fcm, "Booking Confirmed", guestMsg, { route: '/bookings' });
+          await sendPushNotification(
+            bd.guest_fcm,
+            "Booking Confirmed",
+            guestMsg,
+            { route: "/bookings" },
+          );
         }
         if (bd.host_fcm) {
-          await sendPushNotification(bd.host_fcm, "New Booking Received", hostMsg, { route: '/host-dashboard' });
+          await sendPushNotification(
+            bd.host_fcm,
+            "New Booking Received",
+            hostMsg,
+            { route: "/host-dashboard" },
+          );
         }
       }
     } catch (e) {
-      console.error("Failed to process post-payment actions (emails/notifications):", e);
+      console.error(
+        "Failed to process post-payment actions (emails/notifications):",
+        e,
+      );
     }
 
     res.json({
@@ -242,7 +291,7 @@ export const getPaymentHistory = async (req, res) => {
        JOIN listings l ON b.listing_id = l.id
        WHERE b.guest_id = $1
        ORDER BY p.created_at DESC`,
-      [userId]
+      [userId],
     );
 
     res.json({ success: true, data: result.rows });
@@ -265,7 +314,7 @@ export const stripeWebhook = async (req, res) => {
     event = stripe.webhooks.constructEvent(
       req.body, // must be raw buffer
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     console.error("Webhook signature verification failed:", err.message);
@@ -281,12 +330,12 @@ export const stripeWebhook = async (req, res) => {
       await query(
         `UPDATE bookings SET payment_status = 'paid', status = 'CONFIRMED', updated_at = NOW()
          WHERE id = $1`,
-        [bookingId]
+        [bookingId],
       );
       await query(
         `UPDATE payments SET status = 'succeeded', updated_at = NOW()
          WHERE stripe_payment_intent_id = $1`,
-        [paymentIntent.id]
+        [paymentIntent.id],
       );
       console.log(`✅ Webhook: Payment confirmed for booking ${bookingId}`);
     }
@@ -294,3 +343,4 @@ export const stripeWebhook = async (req, res) => {
 
   res.json({ received: true });
 };
+

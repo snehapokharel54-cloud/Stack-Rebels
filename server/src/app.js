@@ -50,7 +50,7 @@ app.use(
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 200,
-  })
+  }),
 );
 
 // Security middleware
@@ -62,16 +62,20 @@ app.use(hpp());
 app.use((req, res, next) => {
   // Allow access to swagger docs, webhooks, and health checks
   if (
-    req.path.startsWith("/api-docs") || 
-    req.path.startsWith("/swagger") || 
+    req.path.startsWith("/api-docs") ||
+    req.path.startsWith("/swagger") ||
     req.path === "/health" ||
     req.path === "/v1/payments/webhook"
   ) {
     return next();
   }
-  
+
   // If a browser is trying to navigate to the API directly by requesting HTML, block it
-  if (req.method === "GET" && req.headers.accept && req.headers.accept.includes("text/html")) {
+  if (
+    req.method === "GET" &&
+    req.headers.accept &&
+    req.headers.accept.includes("text/html")
+  ) {
     return res.status(403).send(`
       <!DOCTYPE html>
       <html>
@@ -129,11 +133,7 @@ export async function initializeApp() {
     }
 
     if (swaggerDocument) {
-      app.use(
-        "/api-docs",
-        swaggerUi.serve,
-        swaggerUi.setup(swaggerDocument)
-      );
+      app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
       app.get("/swagger.yaml", (req, res) => {
         res.json(swaggerDocument);
       });
