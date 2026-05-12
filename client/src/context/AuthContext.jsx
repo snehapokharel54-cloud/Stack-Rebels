@@ -1,215 +1,264 @@
-/**
- * context/AuthContext.jsx — JWT-based auth against Grihastha backend
- *
- * Roles: frontend uses "user"/"vendor", backend uses "user"/"host"
- * We map vendor → host for API calls.
- */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import api, { getToken, setToken, clearToken, getStoredUser, setStoredUser } from '../services/api'
+import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext(null)
+const AUTH_STORAGE_KEY = 'grihastha_user'
+const LEGACY_AUTH_STORAGE_KEY = 'nestaway_user'
+const ACCOUNTS_STORAGE_KEY = 'grihastha_accounts'
 
-/** Map frontend role names to backend API path segments */
-const roleToEndpoint = (role) => {
-  if (role === 'vendor' || role === 'host') return 'host'
-  if (role === 'admin') return 'admin'
-  return 'user'
+const normalizeEmail = (email = '') => email.trim().toLowerCase()
+
+// ─── Single source of truth for admin credentials ────────────────────────────
+// These are the ONLY valid admin credentials. Any session claiming admin role
+// that does NOT originate from these credentials will be stripped.
+const ADMIN_EMAIL = 'admin@grihastha.com'
+const ADMIN_PASSWORD = 'admin123'
+
+// ─── Pre-seeded demo accounts (always available, no signup needed) ────────────
+const DEFAULT_ACCOUNTS = [
+  {
+    name: 'Demo Guest',
+    email: 'guest@grihastha.com',
+    password: 'guest123',
+    role: 'user',
+    phone: '9800000001',
+    phoneVerified: true,
+    idVerified: true,
+    propName: '', propLocation: '', propDesc: '',
+    createdAt: '2025-01-01T00:00:00.000Z',
+    badges: ['phone_verified', 'id_verified', 'guest'],
+  },
+  {
+    name: 'Demo Host',
+    email: 'host@grihastha.com',
+    password: 'host123',
+    role: 'vendor',
+    phone: '9800000002',
+    phoneVerified: true,
+    idVerified: true,
+    propName: 'Sunset Villa', propLocation: 'Pokhara', propDesc: 'Lakeside property',
+    createdAt: '2025-01-01T00:00:00.000Z',
+    badges: ['phone_verified', 'id_verified', 'host'],
+  },
+]
+
+/**
+ * Validates a user session object. If the session claims to be admin but
+ * the email doesn't match the real admin email, we forcibly clear it.
+ * This prevents localStorage tampering (e.g. manually setting role: "admin").
+ */
+function validateSession(session) {
+  if (!session) return null
+  // If stored session claims admin role but email doesn't match — reject it
+  if (session.role === 'admin' && normalizeEmail(session.email) !== normalizeEmail(ADMIN_EMAIL)) {
+    return null
+  }
+  // Regular users/vendors must not have admin role
+  if (session.role !== 'user' && session.role !== 'vendor' && session.role !== 'admin') {
+    return null
+  }
+  return session
+}
+
+const loadAccounts = () => {
+  try {
+    const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY)
+    const parsed = stored ? JSON.parse(stored) : []
+    const userAccounts = Array.isArray(parsed) ? parsed.filter(acc => acc.role !== 'admin') : []
+
+    // Merge DEFAULT_ACCOUNTS — add them only if not already present
+    const merged = [...userAccounts]
+    for (const def of DEFAULT_ACCOUNTS) {
+      const exists = merged.some(a => normalizeEmail(a.email) === normalizeEmail(def.email))
+      if (!exists) merged.push(def)
+    }
+    return merged
+  } catch {
+    return [...DEFAULT_ACCOUNTS]
+  }
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(getStoredUser)
-  const [loading, setLoading] = useState(false)
-  const [initializing, setInitializing] = useState(true)
+  const [accounts, setAccounts] = useState(loadAccounts)
 
-  // ── Rehydrate user from token on mount ──────────────────────
-  useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      setInitializing(false)
-      return
+  const [user, setUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(LEGACY_AUTH_STORAGE_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      // Run validation to prevent tampered sessions
+      return validateSession(parsed)
+    } catch {
+      return null
     }
-    api.get('/users/me').then((res) => {
-      if (res.success && res.data) {
-        const userData = normalizeUser(res.data)
-        setUser(userData)
-        setStoredUser(userData)
-      } else {
-        // Token invalid
-        clearToken()
-        setUser(null)
-      }
-      setInitializing(false)
-    })
-  }, [])
+  })
 
-  // ── Persist user to localStorage on change ──────────────────
+  const [loading, setLoading] = useState(false)
+
+  // Persist session — but never persist a fraudulent admin session
   useEffect(() => {
     if (user) {
-      setStoredUser(user)
+      // Final safety: if user.role === admin but email doesn't match, log out
+      if (user.role === 'admin' && normalizeEmail(user.email) !== normalizeEmail(ADMIN_EMAIL)) {
+        localStorage.removeItem(AUTH_STORAGE_KEY)
+        localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+        setUser(null)
+        return
+      }
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
     }
   }, [user])
 
-  // ── Normalize backend user object to frontend shape ─────────
-  const normalizeUser = (userObj) => ({
-    id: userObj.id,
-    name: userObj.full_name,
-    email: userObj.email,
-    role: userObj.is_host ? 'vendor' : userObj.role === 'ADMIN' ? 'admin' : 'user',
-    avatar: userObj.avatar_url || userObj.full_name?.charAt(0)?.toUpperCase(),
-    avatarUrl: userObj.avatar_url || null,
-    phone: userObj.phone || '',
-    bio: userObj.bio || '',
-    isVerified: userObj.is_verified || false,
-    isSuperhost: userObj.is_superhost || false,
-    preferredCurrency: userObj.preferred_currency || 'NPR',
-    createdAt: userObj.created_at,
-  })
+  useEffect(() => {
+    // Never store accounts with admin role
+    const safe = accounts.filter(acc => acc.role !== 'admin')
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(safe))
+  }, [accounts])
 
-  // ── Signup ──────────────────────────────────────────────────
-  const signup = useCallback(async ({ email, full_name, password, phone, role, document }) => {
+  /**
+   * signup — does NOT allow admin role to be registered
+   */
+  const signup = ({
+    name, email, password, role,
+    phone = '', phoneVerified = false,
+    idVerified = false,
+    propName = '', propLocation = '', propDesc = '',
+  }) => {
     setLoading(true)
-    try {
-      const endpoint = roleToEndpoint(role)
-      let res;
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const normalizedEmail = normalizeEmail(email)
 
-      if (document) {
-        const formData = new FormData()
-        formData.append('email', email)
-        formData.append('full_name', full_name)
-        formData.append('password', password)
-        if (phone?.trim()) formData.append('phone', phone.trim())
-        if (document) formData.append('document', document)
-        res = await api.upload(`/auth/${endpoint}/signup`, formData)
-      } else {
-        const body = { email, full_name, password }
-        if (phone?.trim()) body.phone = phone.trim()
-        res = await api.post(`/auth/${endpoint}/signup`, body)
-      }
-      if (!res.success) {
-        return { ok: false, error: res.message }
-      }
-      return { ok: true, needsVerification: true, email }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // ── Verify Email OTP ────────────────────────────────────────
-  const verifyEmail = useCallback(async ({ email, otp, role }) => {
-    setLoading(true)
-    try {
-      const endpoint = roleToEndpoint(role)
-      const res = await api.post(`/auth/${endpoint}/verify-email`, { email, otp })
-      if (!res.success) {
-        return { ok: false, error: res.message }
-      }
-      // After verification, the backend may return a token
-      const token = res.token || res.data?.token;
-      const user = res.user || res.data?.user;
-      
-      if (token) {
-        setToken(token)
-        if (user) {
-          const userData = normalizeUser(user)
-          setUser(userData)
-          setStoredUser(userData)
+        // Block: cannot sign up with admin email or admin role
+        if (normalizedEmail === normalizeEmail(ADMIN_EMAIL)) {
+          setLoading(false)
+          resolve({ ok: false, error: 'This email is reserved. Please use a different email.' })
+          return
         }
-      }
-      return { ok: true }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+        if (role === 'admin') {
+          setLoading(false)
+          resolve({ ok: false, error: 'Invalid role.' })
+          return
+        }
 
-  // ── Login ───────────────────────────────────────────────────
-  const login = useCallback(async ({ email, password, role }) => {
+        const exists = accounts.some((acc) => normalizeEmail(acc.email) === normalizedEmail)
+        if (exists) {
+          setLoading(false)
+          resolve({ ok: false, error: 'Account already exists with this email.' })
+          return
+        }
+
+        const newAccount = {
+          name: name.trim(),
+          email: normalizedEmail,
+          password,
+          // Forcibly clamp role — cannot be admin
+          role: role === 'vendor' ? 'vendor' : 'user',
+          phone,
+          phoneVerified,
+          idVerified,
+          propName,
+          propLocation,
+          propDesc,
+          createdAt: new Date().toISOString(),
+          badges: [
+            ...(phoneVerified ? ['phone_verified'] : []),
+            ...(idVerified ? ['id_verified'] : []),
+            ...(role === 'vendor' ? ['host'] : ['guest']),
+          ],
+        }
+
+        setAccounts((prev) => [...prev, newAccount])
+        setLoading(false)
+        resolve({ ok: true, account: newAccount })
+      }, 800)
+    })
+  }
+
+  const login = ({ email, password }) => {
     setLoading(true)
-    try {
-      const endpoint = roleToEndpoint(role || 'user')
-      const res = await api.post(`/auth/${endpoint}/login`, { email, password })
-      if (!res.success) {
-        return { ok: false, error: res.message }
-      }
-      
-      const token = res.token || res.data?.token;
-      const user = res.user || res.data?.user;
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const normalizedEmail = normalizeEmail(email)
 
-      // Store token
-      if (token) {
-        setToken(token)
-      }
-      // Build user data
-      const userData = user ? normalizeUser(user) : { email, role: role || 'user' }
-      setUser(userData)
-      setStoredUser(userData)
-      return { ok: true, user: userData }
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+        // ── Admin credential check (EXACT match required) ─────────────────
+        if (normalizedEmail === normalizeEmail(ADMIN_EMAIL)) {
+          if (password === ADMIN_PASSWORD) {
+            // Correct admin credentials → grant admin session
+            const adminSession = {
+              name: 'Administrator',
+              email: ADMIN_EMAIL,
+              role: 'admin',
+              avatar: 'A',
+              phone: '',
+              phoneVerified: true,
+              idVerified: true,
+              badges: ['admin'],
+            }
+            setUser(adminSession)
+            setLoading(false)
+            resolve({ ok: true, user: adminSession })
+          } else {
+            // Admin email but wrong password → deny, no hint
+            setLoading(false)
+            resolve({ ok: false, error: 'Invalid email or password.' })
+          }
+          return
+        }
 
-  // ── Logout ──────────────────────────────────────────────────
-  const logout = useCallback(() => {
-    clearToken()
+        // ── Regular account lookup ────────────────────────────────────────
+        const account = accounts.find(
+          (acc) =>
+            normalizeEmail(acc.email) === normalizedEmail &&
+            acc.password === password &&
+            acc.role !== 'admin', // extra guard: skip any tampered account with admin role
+        )
+
+        if (!account) {
+          setLoading(false)
+          resolve({ ok: false, error: 'Invalid email or password.' })
+          return
+        }
+
+        const userData = {
+          name: account.name,
+          email: account.email,
+          // Clamp role — regular accounts can only be user or vendor
+          role: account.role === 'vendor' ? 'vendor' : 'user',
+          avatar: account.name?.charAt(0)?.toUpperCase(),
+          phone: account.phone || '',
+          phoneVerified: account.phoneVerified || false,
+          idVerified: account.idVerified || false,
+          badges: (account.badges || []).filter(b => b !== 'admin'),
+          propName: account.propName || '',
+          propLocation: account.propLocation || '',
+        }
+
+        setUser(userData)
+        setLoading(false)
+        resolve({ ok: true, user: userData })
+      }, 800)
+    })
+  }
+
+  const logout = () => {
     setUser(null)
-  }, [])
+  }
 
-  // ── Fetch / refresh profile ─────────────────────────────────
-  const fetchProfile = useCallback(async () => {
-    const res = await api.get('/users/me')
-    if (res.success && res.data) {
-      const userData = normalizeUser(res.data)
-      setUser(userData)
-      setStoredUser(userData)
-      return userData
-    }
-    return null
-  }, [])
+  const updateUser = (updates) => {
+    // Never allow role upgrade to admin via updateUser
+    const safe = { ...updates }
+    if (safe.role === 'admin') delete safe.role
+    setUser(prev => prev ? { ...prev, ...safe } : prev)
+  }
 
-  // ── Update profile ─────────────────────────────────────────
-  const updateUser = useCallback(async (updates) => {
-    const res = await api.patch('/users/me', updates)
-    if (res.success) {
-      // Refresh profile from server
-      await fetchProfile()
-      return { ok: true }
-    }
-    return { ok: false, error: res.message }
-  }, [fetchProfile])
-
-  // ── Forgot password ─────────────────────────────────────────
-  const forgotPassword = useCallback(async ({ email, role }) => {
-    const endpoint = roleToEndpoint(role || 'user')
-    const res = await api.post(`/auth/${endpoint}/forgot-password`, { email })
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  // ── Reset password ──────────────────────────────────────────
-  const resetPassword = useCallback(async ({ token, password, role }) => {
-    const endpoint = roleToEndpoint(role || 'user')
-    const res = await api.post(`/auth/${endpoint}/reset-password`, { token, password })
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  const isAuthenticated = !!user && !!getToken()
+  const isAuthenticated = !!user
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        signup,
-        verifyEmail,
-        login,
-        logout,
-        loading,
-        initializing,
-        isAuthenticated,
-        updateUser,
-        fetchProfile,
-        forgotPassword,
-        resetPassword,
-      }}
-    >
+    <AuthContext.Provider value={{ user, accounts, signup, login, logout, loading, isAuthenticated, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

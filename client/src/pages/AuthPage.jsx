@@ -52,7 +52,7 @@ export default function AuthPage() {
       {view === 'login' && (
         <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
           <LoginView
-            onSwitchToSignup={(selectedRole) => switchView('signup', { role: selectedRole || role })}
+            onSwitchToSignup={() => switchView('signup', { role })}
             onForgotPassword={() => switchView('forgot')}
           />
         </motion.div>

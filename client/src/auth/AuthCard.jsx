@@ -1,5 +1,5 @@
 /**
- * auth/AuthCard.jsx  — wrapper card shared by all auth views ok
+ * auth/AuthCard.jsx  — wrapper card shared by all auth views
  */
 import { motion } from 'framer-motion'
 

@@ -1,16 +1,40 @@
-# React + Vite
+# Grihastha — Rental Marketplace Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern rental marketplace platform built with **React + Vite**, featuring role-based authentication, property listings, booking management, and an admin control panel.
 
-Currently, two official plugins are available:
+## 🚀 Tech Stack
+- React 18 + Vite
+- Framer Motion (animations)
+- React Router DOM (routing)
+- React Icons
+- Vanilla CSS + Tailwind
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 📦 Features
 
-## React Compiler
+### ⭐ Rating System
+- Animated star rating input & display
+- Booking-gated review submission (only booked users can review)
+- Per-property reviews page with average rating
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🛡️ Admin Dashboard UI
+- Overview stats (users, hosts, bookings, pending properties)
+- User management with remove/restore
+- Property verification with approve/reject + document preview
 
-## Expanding the ESLint configuration
+### 🏠 Host (Vendor) Authentication + Property Approval
+- Multi-step signup (Basic Info → OTP → Identity/Property Docs)
+- Role-aware login (User vs Host)
+- Vendor dashboard with property submission + approval status
+- Secure role-based AuthContext (tamper-proof admin session)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🔑 Admin Login
+```
+Email:    admin@grihastha.com
+Password: admin123
+```
+
+## 🛠️ Run Locally
+```bash
+npm install
+npm run dev
+```

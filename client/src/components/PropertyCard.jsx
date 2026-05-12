@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { FiHeart } from 'react-icons/fi'
 import { FaHeart, FaStar } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
+import { useAppData } from '../context/AppDataContext'
 
 const CATEGORY_BADGE = {
   house: { label: 'House', color: '#10b981', bg: '#ecfdf5' },
@@ -12,10 +13,11 @@ const CATEGORY_BADGE = {
 }
 
 export default function PropertyCard({ listing, index = 0 }) {
-  const [wishlisted, setWishlisted] = useState(false)
+  const { isWishlisted, toggleWishlist } = useAppData()
   const [imgLoaded, setImgLoaded] = useState(false)
   const navigate = useNavigate()
   const { title, location, price, rating, reviews, image, tag, category, bedrooms, maxGuests } = listing
+  const wishlisted = isWishlisted(listing.id)
   const catBadge = CATEGORY_BADGE[category]
 
   const handleCardClick = () => {
@@ -54,7 +56,7 @@ export default function PropertyCard({ listing, index = 0 }) {
         {/* Wishlist */}
         <button
           id={`wishlist-${listing.id}`}
-          onClick={e => { e.stopPropagation(); setWishlisted(w => !w) }}
+          onClick={e => { e.stopPropagation(); toggleWishlist(listing.id) }}
           style={{ position: 'absolute', top: 12, right: 12, background: wishlisted ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.2)', border: 'none', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)', transition: 'all 0.2s', flexShrink: 0 }}
           onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
           onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}

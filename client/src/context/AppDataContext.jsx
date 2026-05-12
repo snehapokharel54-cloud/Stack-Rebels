@@ -1,472 +1,514 @@
-/**
- * context/AppDataContext.jsx — Live API data context for Grihastha
- *
- * All CRUD operations hit the backend REST API instead of localStorage.
- * Provides listings search, bookings, wishlists, reviews, notifications.
- */
-import { createContext, useContext, useState, useCallback } from 'react'
-import api from '../services/api'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { allListings } from '../data/listings'
 
 const AppDataContext = createContext(null)
 
+const STORAGE_KEYS = {
+  wishlist: 'grihastha_wishlist',
+  bookings: 'grihastha_bookings',
+  notifications: 'grihastha_notifications',
+  hostProperties: 'grihastha_host_properties',
+  propertyViews: 'grihastha_property_views',
+  reviews: 'grihastha_reviews',
+  adminUsers: 'grihastha_admin_users',
+  kycRecords: 'grihastha_kyc_records',
+  credits: 'grihastha_credits',
+  creditLog: 'grihastha_credit_log',
+  auditLog: 'grihastha_audit_log',
+}
+
+function loadFromStorage(key, fallback) {
+  try {
+    const v = localStorage.getItem(key)
+    return v ? JSON.parse(v) : fallback
+  } catch { return fallback }
+}
+
+// Seed default admin users for demo
+const DEFAULT_ADMIN_USERS = [
+  { id: 'usr_001', name: 'Priya Sharma', email: 'priya@demo.com', role: 'user', createdAt: '2025-01-15T08:00:00Z', status: 'active' },
+  { id: 'usr_002', name: 'Rajan Malla', email: 'rajan@demo.com', role: 'user', createdAt: '2025-02-20T10:30:00Z', status: 'active' },
+  { id: 'usr_003', name: 'Anita Thapa', email: 'anita@demo.com', role: 'vendor', createdAt: '2025-03-05T14:00:00Z', status: 'active' },
+  { id: 'usr_004', name: 'Bikash Rai', email: 'bikash@demo.com', role: 'user', createdAt: '2025-03-18T09:15:00Z', status: 'active' },
+  { id: 'usr_005', name: 'Sunita Gurung', email: 'sunita@demo.com', role: 'vendor', createdAt: '2025-04-02T11:45:00Z', status: 'active' },
+]
+
+// Seed mock reviews
+const DEFAULT_REVIEWS = {
+  1: [
+    { id: 'rev_1_1', propertyId: 1, userId: 'priya@demo.com', userName: 'Priya S.', avatar: 'P', rating: 5, comment: 'Absolutely beautiful place! The views were breathtaking and the host was incredibly helpful. Will definitely return.', date: 'March 2025', createdAt: '2025-03-15T10:00:00Z' },
+    { id: 'rev_1_2', propertyId: 1, userId: 'rajan@demo.com', userName: 'Rajan M.', avatar: 'R', rating: 4, comment: 'Great value for money. Clean, comfortable and well-located. Minor issue with hot water but host resolved it quickly.', date: 'February 2025', createdAt: '2025-02-20T14:00:00Z' },
+    { id: 'rev_1_3', propertyId: 1, userId: 'anita@demo.com', userName: 'Anita T.', avatar: 'A', rating: 5, comment: "One of the best stays in Nepal. The property photos don't do it justice — it's even better in person!", date: 'January 2025', createdAt: '2025-01-10T09:00:00Z' },
+  ],
+  2: [
+    { id: 'rev_2_1', propertyId: 2, userId: 'bikash@demo.com', userName: 'Bikash R.', avatar: 'B', rating: 5, comment: 'The heritage townhouse exceeded all expectations. Waking up to the sounds of the old city was magical.', date: 'April 2025', createdAt: '2025-04-10T10:00:00Z' },
+    { id: 'rev_2_2', propertyId: 2, userId: 'sunita@demo.com', userName: 'Sunita G.', avatar: 'S', rating: 4, comment: 'Beautiful property with authentic Newari architecture. Great location for exploring Patan.', date: 'March 2025', createdAt: '2025-03-22T16:00:00Z' },
+  ],
+  3: [
+    { id: 'rev_3_1', propertyId: 3, userId: 'priya@demo.com', userName: 'Priya S.', avatar: 'P', rating: 5, comment: 'The pool villa was absolutely stunning. Worth every rupee. Perfect for a family getaway!', date: 'April 2025', createdAt: '2025-04-05T12:00:00Z' },
+  ],
+}
+
 export function AppDataProvider({ children }) {
-  // ── Listings state (API-driven) ─────────────────────────────
-  const [listings, setListings] = useState([])
-  const [listingsLoading, setListingsLoading] = useState(false)
-  const [pagination, setPagination] = useState({ total: 0, hasMore: false })
-  const [searchParams, setSearchParams] = useState({
-    location: '',
-    category: '',
-    minPrice: '',
-    maxPrice: '',
-    checkIn: '',
-    checkOut: '',
-    adults: '',
-    sortBy: 'newest',
+  const [wishlist, setWishlist] = useState(() => loadFromStorage(STORAGE_KEYS.wishlist, []))
+  const [bookings, setBookings] = useState(() => loadFromStorage(STORAGE_KEYS.bookings, []))
+  const [notifications, setNotifications] = useState(() => loadFromStorage(STORAGE_KEYS.notifications, []))
+  const [hostProperties, setHostProperties] = useState(() => loadFromStorage(STORAGE_KEYS.hostProperties, []))
+  const [propertyViews, setPropertyViews] = useState(() => loadFromStorage(STORAGE_KEYS.propertyViews, {}))
+  const [reviews, setReviews] = useState(() => loadFromStorage(STORAGE_KEYS.reviews, DEFAULT_REVIEWS))
+  const [adminUsers, setAdminUsers] = useState(() => loadFromStorage(STORAGE_KEYS.adminUsers, DEFAULT_ADMIN_USERS))
+  const [kycRecords, setKycRecords] = useState(() => loadFromStorage(STORAGE_KEYS.kycRecords, {}))
+  const [credits, setCredits] = useState(() => loadFromStorage(STORAGE_KEYS.credits, {}))
+  const [creditLog, setCreditLog] = useState(() => loadFromStorage(STORAGE_KEYS.creditLog, []))
+  const [auditLog, setAuditLog] = useState(() => loadFromStorage(STORAGE_KEYS.auditLog, []))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [priceRange, setPriceRange] = useState([0, 15000])
+
+  // Persist to localStorage
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.wishlist, JSON.stringify(wishlist)) }, [wishlist])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.bookings, JSON.stringify(bookings)) }, [bookings])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(notifications)) }, [notifications])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.hostProperties, JSON.stringify(hostProperties)) }, [hostProperties])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.propertyViews, JSON.stringify(propertyViews)) }, [propertyViews])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(reviews)) }, [reviews])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.adminUsers, JSON.stringify(adminUsers)) }, [adminUsers])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.kycRecords, JSON.stringify(kycRecords)) }, [kycRecords])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.credits, JSON.stringify(credits)) }, [credits])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.creditLog, JSON.stringify(creditLog)) }, [creditLog])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.auditLog, JSON.stringify(auditLog)) }, [auditLog])
+
+  // All available properties = static (always approved) + approved host-uploaded
+  const allProperties = [
+    ...allListings,
+    ...hostProperties.filter(p => p.approvalStatus === 'approved' && p.available !== false),
+  ]
+
+  // All host properties including pending/rejected (for admin use)
+  const allHostPropertiesRaw = hostProperties
+
+  // Filtered properties for user home (only approved)
+  const filteredProperties = allProperties.filter(p => {
+    const matchCat = activeCategory === 'all' || p.category === activeCategory
+    const matchSearch = !searchQuery ||
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.location.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchPrice = p.price >= priceRange[0] && p.price <= priceRange[1]
+    return matchCat && matchSearch && matchPrice
   })
 
-  // ── Bookings state ──────────────────────────────────────────
-  const [bookings, setBookings] = useState([])
-  const [bookingsLoading, setBookingsLoading] = useState(false)
+  // Track view
+  const trackView = useCallback((propertyId) => {
+    setPropertyViews(prev => ({
+      ...prev,
+      [propertyId]: (prev[propertyId] || 0) + 1,
+    }))
+  }, [])
 
-  // ── Wishlists state ─────────────────────────────────────────
-  const [wishlists, setWishlists] = useState([])
-  const [wishlistsLoading, setWishlistsLoading] = useState(false)
+  // Wishlist
+  const toggleWishlist = useCallback((propertyId) => {
+    setWishlist(prev =>
+      prev.includes(propertyId)
+        ? prev.filter(id => id !== propertyId)
+        : [...prev, propertyId]
+    )
+  }, [])
+  const isWishlisted = useCallback((propertyId) => wishlist.includes(propertyId), [wishlist])
 
-  // ── Notifications state ─────────────────────────────────────
-  const [notifications, setNotifications] = useState([])
-  const [notificationsLoading, setNotificationsLoading] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  // ═══════════════════════════════════════════════════════════
-  // LISTINGS
-  // ═══════════════════════════════════════════════════════════
-
-  /** Search published listings */
-  const searchListings = useCallback(async (params = {}) => {
-    setListingsLoading(true)
-    try {
-      const query = {
-        location: params.location || searchParams.location || undefined,
-        category: params.category && params.category !== 'all' ? params.category : undefined,
-        minPrice: params.minPrice || searchParams.minPrice || undefined,
-        maxPrice: params.maxPrice || searchParams.maxPrice || undefined,
-        checkIn: params.checkIn || searchParams.checkIn || undefined,
-        checkOut: params.checkOut || searchParams.checkOut || undefined,
-        adults: params.adults || searchParams.adults || undefined,
-        sortBy: params.sortBy || searchParams.sortBy || undefined,
-        limit: params.limit || 20,
-        offset: params.offset || 0,
-      }
-      const res = await api.get('/listings/search', query)
-      if (res.success) {
-        setListings(res.data || [])
-        setPagination(res.pagination || { total: 0, hasMore: false })
-      }
-      return res
-    } finally {
-      setListingsLoading(false)
+  // Add notification
+  const addNotification = useCallback((notification) => {
+    const n = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      read: false,
+      ...notification,
     }
-  }, [searchParams])
-
-  /** Get single listing by ID */
-  const getListingById = useCallback(async (id) => {
-    const res = await api.get(`/listings/${id}`)
-    if (res.success) return { ok: true, data: res.data }
-    return { ok: false, error: res.message }
+    setNotifications(prev => [n, ...prev])
   }, [])
-
-  /** Update search params and re-search */
-  const updateSearchParams = useCallback((updates) => {
-    setSearchParams((prev) => ({ ...prev, ...updates }))
+  const markNotificationsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
   }, [])
+  const unreadCount = notifications.filter(n => !n.read).length
 
-  // ── Host Listing CRUD ───────────────────────────────────────
+  // Book a property
+  const createBooking = useCallback(({ propertyId, userId, userEmail, userName, checkIn, checkOut, guests, totalPrice }) => {
+    const property = allProperties.find(p => p.id === propertyId)
+    if (!property) return { ok: false, error: 'Property not found' }
 
-  /** Create blank draft listing */
-  const createListing = useCallback(async () => {
-    const res = await api.post('/listings')
-    if (res.success) return { ok: true, data: res.data || res }
-    return { ok: false, error: res.message }
-  }, [])
+    const conflict = bookings.find(b =>
+      b.propertyId === propertyId &&
+      b.status !== 'cancelled' &&
+      new Date(b.checkIn) < new Date(checkOut) &&
+      new Date(b.checkOut) > new Date(checkIn)
+    )
+    if (conflict) return { ok: false, error: 'These dates are already booked.' }
 
-  /** Update listing (multi-step) */
-  const updateListing = useCallback(async (id, data) => {
-    const res = await api.patch(`/listings/${id}`, data)
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
-
-  /** Upload photos to listing */
-  const uploadPhotos = useCallback(async (id, files) => {
-    const formData = new FormData()
-    files.forEach((file) => formData.append('photos', file))
-    const res = await api.upload(`/listings/${id}/photos`, formData)
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
-
-  /** Publish listing */
-  const publishListing = useCallback(async (id) => {
-    const res = await api.post(`/listings/${id}/publish`)
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  /** Delete listing */
-  const deleteListing = useCallback(async (id) => {
-    const res = await api.delete(`/listings/${id}`)
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  /** Get host's own listings */
-  const getMyListings = useCallback(async (status) => {
-    const res = await api.get('/listings/host/my-listings', status ? { status } : {})
-    return res.success ? { ok: true, data: res.data || res } : { ok: false, error: res.message }
-  }, [])
-
-  /** Update listing pricing */
-  const updateListingPricing = useCallback(async (id, pricingData) => {
-    const res = await api.patch(`/listings/${id}/pricing`, pricingData)
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  // ═══════════════════════════════════════════════════════════
-  // BOOKINGS
-  // ═══════════════════════════════════════════════════════════
-
-  /** Create a booking */
-  const createBooking = useCallback(async ({ listing_id, check_in, check_out, guests, booking_type, special_requests }) => {
-    const res = await api.post('/bookings', {
-      listing_id,
-      check_in,
-      check_out,
+    const booking = {
+      id: `BK${Date.now()}`,
+      propertyId,
+      propertyTitle: property.title,
+      propertyImage: property.image,
+      propertyLocation: property.location,
+      userId,
+      userEmail,
+      userName,
+      checkIn,
+      checkOut,
       guests,
-      booking_type: booking_type || 'instant',
-      special_requests,
+      totalPrice,
+      pricePerNight: property.price,
+      status: 'confirmed',
+      createdAt: new Date().toISOString(),
+      hostId: property.hostId,
+      reviewed: false,
+    }
+
+    setBookings(prev => [booking, ...prev])
+
+    addNotification({
+      type: 'booking',
+      title: 'Booking Confirmed! 🎉',
+      message: `Your stay at "${property.title}" is confirmed for ${checkIn} → ${checkOut}.`,
+      propertyId,
     })
-    if (res.success) return { ok: true, data: res }
-    return { ok: false, error: res.message, status: res.status }
+
+    return { ok: true, booking }
+  }, [bookings, allProperties, addNotification])
+
+  const cancelBooking = useCallback((bookingId) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' } : b))
   }, [])
 
-  /** Get guest bookings */
-  const getUserBookings = useCallback(async (status, limit = 20, offset = 0) => {
-    setBookingsLoading(true)
-    try {
-      const res = await api.get('/bookings', { status, limit, offset })
-      if (res.success) {
-        setBookings(res.data || res.bookings || [])
-      }
-      return res
-    } finally {
-      setBookingsLoading(false)
+  const getUserBookings = useCallback((userId) => {
+    return bookings.filter(b => b.userId === userId)
+  }, [bookings])
+
+  const getHostBookings = useCallback((hostId) => {
+    return bookings.filter(b => b.hostId === hostId)
+  }, [bookings])
+
+  // ─── Reviews & Ratings ──────────────────────────────────────────────────
+  const getPropertyReviews = useCallback((propertyId) => {
+    return reviews[propertyId] || []
+  }, [reviews])
+
+  const getPropertyAverageRating = useCallback((propertyId) => {
+    const propReviews = reviews[propertyId] || []
+    if (propReviews.length === 0) return null
+    const sum = propReviews.reduce((acc, r) => acc + r.rating, 0)
+    return (sum / propReviews.length).toFixed(1)
+  }, [reviews])
+
+  const hasUserReviewedProperty = useCallback((propertyId, userId) => {
+    const propReviews = reviews[propertyId] || []
+    return propReviews.some(r => r.userId === userId)
+  }, [reviews])
+
+  const canUserReview = useCallback((propertyId, userId) => {
+    // User can review only if they have a confirmed booking for this property
+    const hasBooking = bookings.some(b =>
+      b.propertyId === propertyId &&
+      b.userId === userId &&
+      b.status === 'confirmed'
+    )
+    const alreadyReviewed = hasUserReviewedProperty(propertyId, userId)
+    return { canReview: hasBooking && !alreadyReviewed, hasBooking, alreadyReviewed }
+  }, [bookings, hasUserReviewedProperty])
+
+  const submitReview = useCallback(({ propertyId, userId, userName, avatar, rating, comment }) => {
+    const newReview = {
+      id: `rev_${propertyId}_${Date.now()}`,
+      propertyId,
+      userId,
+      userName,
+      avatar: avatar || userName?.charAt(0)?.toUpperCase() || 'U',
+      rating,
+      comment,
+      date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      createdAt: new Date().toISOString(),
     }
+    setReviews(prev => ({
+      ...prev,
+      [propertyId]: [...(prev[propertyId] || []), newReview],
+    }))
+    // Mark booking as reviewed
+    setBookings(prev => prev.map(b =>
+      b.propertyId === propertyId && b.userId === userId
+        ? { ...b, reviewed: true }
+        : b
+    ))
+    return { ok: true, review: newReview }
   }, [])
 
-  /** Get single booking detail */
-  const getBookingById = useCallback(async (id) => {
-    const res = await api.get(`/bookings/${id}`)
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
+  // ─── Admin: Delete a review ──────────────────────────────────────────────
+  const setReviewsAdmin = useCallback((propertyId, reviewId) => {
+    setReviews(prev => ({
+      ...prev,
+      [propertyId]: (prev[propertyId] || []).filter(r => r.id !== reviewId),
+    }))
   }, [])
 
-  /** Cancel booking (guest) */
-  const cancelBooking = useCallback(async (id, reason) => {
-    const res = await api.patch(`/bookings/${id}/cancel`, reason ? { reason } : {})
-    return res.success ? { ok: true } : { ok: false, error: res.message }
+  // ─── Audit Log ───────────────────────────────────────────────────────────
+  const addAuditLog = useCallback((entry) => {
+    const log = { id: `al_${Date.now()}`, timestamp: new Date().toISOString(), ...entry }
+    setAuditLog(prev => [log, ...prev.slice(0, 199)])
   }, [])
 
-  /** Get host incoming bookings */
-  const getHostBookings = useCallback(async (status, limit = 20) => {
-    const res = await api.get('/bookings/host/incoming', { status, limit })
-    return res.success ? { ok: true, data: res.data || [] } : { ok: false, error: res.message }
+  // ─── KYC ─────────────────────────────────────────────────────────────────
+  const getUserKYC = useCallback((email) => kycRecords[email] || { status: 'not_submitted' }, [kycRecords])
+
+  const submitKYC = useCallback(({ email, ...docNames }) => {
+    setKycRecords(prev => ({
+      ...prev,
+      [email]: { status: 'pending', submittedAt: new Date().toISOString(), ...docNames, rejectionReason: null },
+    }))
   }, [])
 
-  /** Accept booking (host) */
-  const acceptBooking = useCallback(async (id) => {
-    const res = await api.patch(`/bookings/${id}/accept`)
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
+  const adminApproveKYC = useCallback((email) => {
+    setKycRecords(prev => ({ ...prev, [email]: { ...prev[email], status: 'verified', reviewedAt: new Date().toISOString() } }))
+    addAuditLog({ action: 'KYC Approved', targetEmail: email, details: 'Identity verified' })
+  }, [addAuditLog])
 
-  /** Decline booking (host) */
-  const declineBooking = useCallback(async (id, reason) => {
-    const res = await api.patch(`/bookings/${id}/decline`, reason ? { reason } : {})
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
+  const adminRejectKYC = useCallback((email, reason) => {
+    setKycRecords(prev => ({ ...prev, [email]: { ...prev[email], status: 'rejected', rejectionReason: reason, reviewedAt: new Date().toISOString() } }))
+    addAuditLog({ action: 'KYC Rejected', targetEmail: email, details: reason })
+  }, [addAuditLog])
 
-  /** Price breakdown */
-  const getBookingPriceBreakdown = useCallback(async (id) => {
-    const res = await api.get(`/bookings/${id}/price-breakdown`)
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
+  const getAllKYCRecords = useCallback(() => kycRecords, [kycRecords])
 
-  // ═══════════════════════════════════════════════════════════
-  // WISHLISTS
-  // ═══════════════════════════════════════════════════════════
+  // ─── Credits ─────────────────────────────────────────────────────────────
+  const getUserCredits = useCallback((email) => credits[email] || 0, [credits])
 
-  /** Fetch all wishlists */
-  const fetchWishlists = useCallback(async () => {
-    setWishlistsLoading(true)
-    try {
-      const res = await api.get('/wishlists')
-      if (res.success) {
-        setWishlists(res.data || [])
-      }
-      return res
-    } finally {
-      setWishlistsLoading(false)
+  const adminAdjustCredits = useCallback((targetEmail, amount, reason, adminName) => {
+    setCredits(prev => ({ ...prev, [targetEmail]: Math.max(0, (prev[targetEmail] || 0) + amount) }))
+    const entry = { id: `cr_${Date.now()}`, date: new Date().toISOString(), admin: adminName || 'Admin', userEmail: targetEmail, amount, reason }
+    setCreditLog(prev => [entry, ...prev])
+    addAuditLog({ action: amount > 0 ? 'Credits Added' : 'Credits Deducted', targetEmail, details: `${Math.abs(amount)} credits — ${reason}` })
+  }, [credits, addAuditLog])
+
+  // ─── Admin role management ────────────────────────────────────────────────
+  const adminChangeRole = useCallback((userId, newRole, adminName) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'Role Changed', targetEmail: user?.email || userId, details: `Role changed to ${newRole}` })
+  }, [adminUsers, addAuditLog])
+
+  const adminSuspendUser = useCallback((userId, reason, duration, adminName) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'suspended', suspendReason: reason, suspendDuration: duration } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'User Suspended', targetEmail: user?.email || userId, details: `${reason} (${duration})` })
+  }, [adminUsers, addAuditLog])
+
+  const adminUnsuspendUser = useCallback((userId) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'active', suspendReason: null, suspendDuration: null } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'User Unsuspended', targetEmail: user?.email || userId, details: 'Account restored' })
+  }, [adminUsers, addAuditLog])
+
+  // ─── Host CRUD + Approval Flow ──────────────────────────────────────────
+  const addHostProperty = useCallback((property, hostId, hostName) => {
+    const newProp = {
+      ...property,
+      id: `hp_${Date.now()}`,
+      hostId,
+      hostName,
+      hostAvatar: hostName?.charAt(0)?.toUpperCase(),
+      rating: 0,
+      reviews: 0,
+      views: 0,
+      bookings: 0,
+      available: true,
+      approvalStatus: 'pending', // 'pending' | 'approved' | 'rejected'
+      rejectionReason: null,
+      createdAt: new Date().toISOString(),
     }
-  }, [])
-
-  /** Create a new wishlist */
-  const createWishlist = useCallback(async (name) => {
-    const res = await api.post('/wishlists', { name })
-    if (res.success) await fetchWishlists()
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [fetchWishlists])
-
-  /** Delete a wishlist */
-  const deleteWishlist = useCallback(async (id) => {
-    const res = await api.delete(`/wishlists/${id}`)
-    if (res.success) await fetchWishlists()
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [fetchWishlists])
-
-  /** Add listing to wishlist */
-  const addToWishlist = useCallback(async (wishlistId, listingId) => {
-    const res = await api.post(`/wishlists/${wishlistId}/listings/${listingId}`)
-    if (res.success) await fetchWishlists()
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [fetchWishlists])
-
-  /** Remove listing from wishlist */
-  const removeFromWishlist = useCallback(async (wishlistId, listingId) => {
-    const res = await api.delete(`/wishlists/${wishlistId}/listings/${listingId}`)
-    if (res.success) await fetchWishlists()
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [fetchWishlists])
-
-  // ═══════════════════════════════════════════════════════════
-  // REVIEWS
-  // ═══════════════════════════════════════════════════════════
-
-  /** Get reviews for a listing */
-  const getListingReviews = useCallback(async (listingId, limit = 10, offset = 0) => {
-    const res = await api.get(`/reviews/listings/${listingId}`, { limit, offset })
-    return res.success ? { ok: true, data: res.data, averages: res.averages } : { ok: false, error: res.message }
-  }, [])
-
-  /** Submit a review */
-  const submitReview = useCallback(async (reviewData) => {
-    const res = await api.post('/reviews', reviewData)
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  /** Get reviews received by host */
-  const getHostReviews = useCallback(async () => {
-    const res = await api.get('/reviews/received')
-    return res.success ? { ok: true, data: res.data || [] } : { ok: false, error: res.message }
-  }, [])
-
-  /** Reply to a review */
-  const replyToReview = useCallback(async (id, reply) => {
-    const res = await api.post(`/reviews/${id}/reply`, { reply })
-    return res.success ? { ok: true } : { ok: false, error: res.message }
-  }, [])
-
-  // ═══════════════════════════════════════════════════════════
-  // NOTIFICATIONS
-  // ═══════════════════════════════════════════════════════════
-
-  /** Fetch notifications */
-  const fetchNotifications = useCallback(async (unread_only = false) => {
-    setNotificationsLoading(true)
-    try {
-      const res = await api.get('/notifications', { unread_only })
-      if (res.success) {
-        const notifs = res.data || []
-        setNotifications(notifs)
-        setUnreadCount(notifs.filter((n) => !n.is_read).length)
-      }
-      return res
-    } finally {
-      setNotificationsLoading(false)
-    }
-  }, [])
-
-  /** Mark all read */
-  const markNotificationsRead = useCallback(async () => {
-    const res = await api.patch('/notifications/read-all')
-    if (res.success) {
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-      setUnreadCount(0)
-    }
-    return res
-  }, [])
-
-  /** Mark single read */
-  const markNotificationRead = useCallback(async (id) => {
-    const res = await api.patch(`/notifications/${id}/read`)
-    if (res.success) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-      )
-      setUnreadCount((prev) => Math.max(0, prev - 1))
-    }
-    return res
-  }, [])
-
-  // ═══════════════════════════════════════════════════════════
-  // HOST DASHBOARD / FINANCES
-  // ═══════════════════════════════════════════════════════════
-
-  /** Get host earnings */
-  const getHostEarnings = useCallback(async () => {
-    const res = await api.get('/host/earnings')
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
-
-  /** Get host dashboard data */
-  const getHostDashboard = useCallback(async () => {
-    const res = await api.get('/host/dashboard')
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
-
-  // ═══════════════════════════════════════════════════════════
-  // PAYMENTS
-  // ═══════════════════════════════════════════════════════════
-
-  /** Create Stripe payment intent */
-  const createStripeIntent = useCallback(async (bookingId) => {
-    const res = await api.post('/payments/create-intent', { booking_id: bookingId })
-    return res.success ? { ok: true, ...res } : { ok: false, error: res.message }
-  }, [])
-
-  /** Verify Stripe payment */
-  const verifyStripePayment = useCallback(async (bookingId, paymentIntentId, sessionId) => {
-    const res = await api.post('/payments/verify', {
-      booking_id: bookingId,
-      payment_intent_id: paymentIntentId,
-      session_id: sessionId,
+    setHostProperties(prev => [newProp, ...prev])
+    addNotification({
+      type: 'listing',
+      title: 'Property Submitted! 🏠',
+      message: `"${property.title}" has been submitted for admin approval. You'll be notified once reviewed.`,
     })
-    return res.success ? { ok: true } : { ok: false, error: res.message }
+    return { ok: true, property: newProp }
+  }, [addNotification])
+
+  const updateHostProperty = useCallback((propertyId, updates) => {
+    setHostProperties(prev => prev.map(p => p.id === propertyId ? { ...p, ...updates } : p))
+    return { ok: true }
   }, [])
 
-  /** Create Khalti payment intent */
-  const createKhaltiIntent = useCallback(async (bookingId) => {
-    const res = await api.post('/payments/khalti/create-intent', { booking_id: bookingId })
-    return res.success
-      ? { ok: true, payment_url: res.payment_url, pidx: res.pidx, amount: res.amount }
-      : { ok: false, error: res.message }
+  const deleteHostProperty = useCallback((propertyId) => {
+    setHostProperties(prev => prev.filter(p => p.id !== propertyId))
   }, [])
 
-  /** Verify Khalti payment */
-  const verifyKhaltiPayment = useCallback(async (bookingId, pidx) => {
-    const res = await api.post('/payments/khalti/verify', {
-      booking_id: bookingId,
-      pidx,
+  const getHostProperties = useCallback((hostId) => {
+    return hostProperties.filter(p => p.hostId === hostId)
+  }, [hostProperties])
+
+  // ─── Admin Actions ───────────────────────────────────────────────────────
+  const adminApproveProperty = useCallback((propertyId) => {
+    let propertyTitle = ''
+    setHostProperties(prev => prev.map(p => {
+      if (p.id === propertyId) {
+        propertyTitle = p.title
+        return { ...p, approvalStatus: 'approved', rejectionReason: null }
+      }
+      return p
+    }))
+    // Add notification for the vendor
+    addNotification({
+      type: 'approval',
+      title: 'Property Approved ✅',
+      message: `Your property "${propertyTitle}" has been approved and is now visible to guests!`,
+      propertyId,
     })
-    return res.success ? { ok: true } : { ok: false, error: res.message }
+  }, [addNotification])
+
+  const adminRejectProperty = useCallback((propertyId, reason) => {
+    let propertyTitle = ''
+    setHostProperties(prev => prev.map(p => {
+      if (p.id === propertyId) {
+        propertyTitle = p.title
+        return { ...p, approvalStatus: 'rejected', rejectionReason: reason || 'Does not meet listing standards.' }
+      }
+      return p
+    }))
+    addNotification({
+      type: 'rejection',
+      title: 'Property Rejected ❌',
+      message: `Your property "${propertyTitle}" was not approved. Reason: ${reason || 'Does not meet listing standards.'}`,
+      propertyId,
+    })
+  }, [addNotification])
+
+  // Admin user management
+  const adminGetAllUsers = useCallback(() => {
+    return adminUsers
+  }, [adminUsers])
+
+  const adminRemoveUser = useCallback((userId, reason) => {
+    setAdminUsers(prev => prev.map(u =>
+      u.id === userId ? { ...u, status: 'removed', removeReason: reason } : u
+    ))
   }, [])
 
-  /** Get payment history */
-  const getPaymentHistory = useCallback(async () => {
-    const res = await api.get('/payments/history')
-    return res.success ? { ok: true, data: res.data || [] } : { ok: false, error: res.message }
+  const adminRestoreUser = useCallback((userId) => {
+    setAdminUsers(prev => prev.map(u =>
+      u.id === userId ? { ...u, status: 'active', removeReason: null } : u
+    ))
   }, [])
 
-  // ═══════════════════════════════════════════════════════════
-  // CONVERSATIONS
-  // ═══════════════════════════════════════════════════════════
-
-  const getConversations = useCallback(async () => {
-    const res = await api.get('/conversations')
-    return res.success ? { ok: true, data: res.data || [] } : { ok: false, error: res.message }
+  // Register new user in admin list when they sign up
+  const registerUserInAdmin = useCallback((userData) => {
+    const newUser = {
+      id: `usr_${Date.now()}`,
+      name: userData.name,
+      email: userData.email,
+      role: userData.role,
+      createdAt: new Date().toISOString(),
+      status: 'active',
+    }
+    setAdminUsers(prev => {
+      const exists = prev.some(u => u.email === userData.email)
+      if (exists) return prev
+      return [...prev, newUser]
+    })
   }, [])
 
-  const startConversation = useCallback(async ({ host_id, listing_id, message }) => {
-    const res = await api.post('/conversations', { host_id, listing_id, message })
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
+  // Host analytics
+  const getHostAnalytics = useCallback((hostId) => {
+    const props = getHostProperties(hostId)
+    const hBookings = getHostBookings(hostId)
+    const confirmedBookings = hBookings.filter(b => b.status === 'confirmed')
+    const totalEarnings = confirmedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+    const totalListings = props.length
+    const totalBookings = confirmedBookings.length
 
-  const getMessages = useCallback(async (conversationId) => {
-    const res = await api.get(`/conversations/${conversationId}/messages`)
-    return res.success ? { ok: true, data: res.data || [] } : { ok: false, error: res.message }
-  }, [])
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date()
+      d.setMonth(d.getMonth() - i)
+      const label = d.toLocaleString('default', { month: 'short' })
+      const revenue = confirmedBookings
+        .filter(b => {
+          const bd = new Date(b.createdAt)
+          return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
+        })
+        .reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+      const count = confirmedBookings.filter(b => {
+        const bd = new Date(b.createdAt)
+        return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
+      }).length
+      months.push({ label, revenue, bookings: count })
+    }
 
-  const sendMessage = useCallback(async (conversationId, body) => {
-    const res = await api.post(`/conversations/${conversationId}/messages`, { body })
-    return res.success ? { ok: true, data: res.data } : { ok: false, error: res.message }
-  }, [])
+    const totalAvailableDays = props.length * 30
+    const totalBookedDays = confirmedBookings.reduce((sum, b) => {
+      const days = Math.max(1, Math.round((new Date(b.checkOut) - new Date(b.checkIn)) / (1000 * 60 * 60 * 24)))
+      return sum + days
+    }, 0)
+    const occupancyRate = totalAvailableDays > 0 ? Math.min(100, Math.round((totalBookedDays / totalAvailableDays) * 100)) : 0
+
+    const propBookingCount = {}
+    confirmedBookings.forEach(b => {
+      propBookingCount[b.propertyId] = (propBookingCount[b.propertyId] || 0) + 1
+    })
+    const topPropertyId = Object.entries(propBookingCount).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const topProperty = topPropertyId ? allProperties.find(p => String(p.id) === String(topPropertyId)) : null
+
+    return { totalListings, totalBookings, totalEarnings, occupancyRate, monthlyData: months, topProperty, confirmedBookings }
+  }, [getHostProperties, getHostBookings, allProperties])
+
+  // Admin system stats
+  const getAdminStats = useCallback(() => {
+    const totalUsers = adminUsers.filter(u => u.role === 'user' && u.status === 'active').length
+    const totalVendors = adminUsers.filter(u => u.role === 'vendor' && u.status === 'active').length
+    const pendingProperties = hostProperties.filter(p => p.approvalStatus === 'pending').length
+    const approvedProperties = hostProperties.filter(p => p.approvalStatus === 'approved').length
+    const rejectedProperties = hostProperties.filter(p => p.approvalStatus === 'rejected').length
+    const totalBookingsCount = bookings.length
+    const totalRevenue = bookings
+      .filter(b => b.status === 'confirmed')
+      .reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+    const totalReviews = Object.values(reviews).reduce((sum, arr) => sum + (arr?.length || 0), 0)
+    return { totalUsers, totalVendors, pendingProperties, approvedProperties, rejectedProperties, totalBookingsCount, totalRevenue, totalReviews }
+  }, [adminUsers, hostProperties, bookings, reviews])
 
   return (
-    <AppDataContext.Provider
-      value={{
-        // Listings
-        listings,
-        listingsLoading,
-        pagination,
-        searchParams,
-        updateSearchParams,
-        searchListings,
-        getListingById,
-        createListing,
-        updateListing,
-        uploadPhotos,
-        publishListing,
-        deleteListing,
-        getMyListings,
-        updateListingPricing,
-
-        // Bookings
-        bookings,
-        bookingsLoading,
-        createBooking,
-        getUserBookings,
-        getBookingById,
-        cancelBooking,
-        getHostBookings,
-        acceptBooking,
-        declineBooking,
-        getBookingPriceBreakdown,
-
-        // Wishlists
-        wishlists,
-        wishlistsLoading,
-        fetchWishlists,
-        createWishlist,
-        deleteWishlist,
-        addToWishlist,
-        removeFromWishlist,
-
-        // Reviews
-        getListingReviews,
-        submitReview,
-        getHostReviews,
-        replyToReview,
-
-        // Notifications
-        notifications,
-        notificationsLoading,
-        unreadCount,
-        fetchNotifications,
-        markNotificationsRead,
-        markNotificationRead,
-
-        // Host
-        getHostEarnings,
-        getHostDashboard,
-
-        // Payments
-        createStripeIntent,
-        verifyStripePayment,
-        createKhaltiIntent,
-        verifyKhaltiPayment,
-        getPaymentHistory,
-
-        // Conversations
-        getConversations,
-        startConversation,
-        getMessages,
-        sendMessage,
-      }}
-    >
+    <AppDataContext.Provider value={{
+      // Properties
+      allProperties,
+      allHostPropertiesRaw,
+      filteredProperties,
+      trackView,
+      // Search / filter
+      searchQuery, setSearchQuery,
+      activeCategory, setActiveCategory,
+      priceRange, setPriceRange,
+      // Wishlist
+      wishlist, toggleWishlist, isWishlisted,
+      // Bookings
+      bookings, createBooking, cancelBooking, getUserBookings, getHostBookings,
+      // Notifications
+      notifications, addNotification, markNotificationsRead, unreadCount,
+      // Host
+      hostProperties,
+      addHostProperty, updateHostProperty, deleteHostProperty, getHostProperties,
+      getHostAnalytics,
+      // Admin
+      adminApproveProperty, adminRejectProperty,
+      adminGetAllUsers, adminRemoveUser, adminRestoreUser,
+      adminChangeRole, adminSuspendUser, adminUnsuspendUser,
+      registerUserInAdmin, getAdminStats,
+      // Reviews
+      reviews, getPropertyReviews, getPropertyAverageRating,
+      hasUserReviewedProperty, canUserReview, submitReview, setReviewsAdmin,
+      // KYC
+      kycRecords, getUserKYC, submitKYC, adminApproveKYC, adminRejectKYC, getAllKYCRecords,
+      // Credits
+      credits, getUserCredits, adminAdjustCredits, creditLog,
+      // Audit
+      auditLog, addAuditLog,
+    }}>
       {children}
     </AppDataContext.Provider>
   )

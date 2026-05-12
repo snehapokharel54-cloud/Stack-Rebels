@@ -7,7 +7,7 @@
  * Step 3 – Property Verify   (VENDOR ONLY)
  * done   – Success screen
  */
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -79,18 +79,14 @@ function StrengthBar({ password }) {
 // ═══════════════════════════════════════════════════════
 // STEP 0: Basic Info
 // ═══════════════════════════════════════════════════════
-function StepBasicInfo({ data, patch, setData, onNext, role, loading: parentLoading }) {
+function StepBasicInfo({ data, patch, onNext, role }) {
   const [errors, setErrors] = useState({})
 
   const validate = () => {
     const e = {}
     if (!data.name.trim()) e.name = 'Full name is required.'
     if (!data.email.includes('@')) e.email = 'Enter a valid email.'
-    if (role === 'vendor' && (!data.phone || data.phone.length < 7)) e.phone = 'Phone number is required for Hosts.'
-    if (data.password.length < 8) e.password = 'At least 8 characters required.'
-    else if (!/[A-Z]/.test(data.password)) e.password = 'Must contain an uppercase letter.'
-    else if (!/[0-9]/.test(data.password)) e.password = 'Must contain a number.'
-    if (role === 'vendor' && !data.idFile) e.idFile = 'A verification document is required for Hosts.'
+    if (data.password.length < 6) e.password = 'At least 6 characters required.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -101,28 +97,12 @@ function StepBasicInfo({ data, patch, setData, onNext, role, loading: parentLoad
         onChange={patch('name')} error={errors.name} />
       <AuthInput id="su-email" icon={FiMail} type="email" placeholder="Email address"
         value={data.email} onChange={patch('email')} error={errors.email} />
-      <AuthInput id="su-phone" icon={FiPhone} type="tel" placeholder="Phone number (optional for guests)"
-        value={data.phone} onChange={patch('phone')} error={errors.phone} />
       <PasswordInput id="su-password" value={data.password} onChange={patch('password')} error={errors.password} />
       <StrengthBar password={data.password} />
-      
-      {role === 'vendor' && (
-        <div style={{ marginTop: 8 }}>
-          <FileUpload
-            label="Verification Document"
-            hint="Citizenship, National ID, or Passport (JPG/PNG/PDF, Max 5MB)"
-            accept="image/*,.pdf"
-            file={data.idFile}
-            onFile={f => setData(d => ({ ...d, idFile: f }))}
-          />
-          {errors.idFile && <p style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>{errors.idFile}</p>}
-        </div>
-      )}
-
       <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>
         Signing up as: <strong style={{ color: '#374151' }}>{role === 'vendor' ? 'Host' : 'Guest'}</strong>
       </p>
-      <PrimaryBtn onClick={() => validate() && onNext()} loading={parentLoading}>
+      <PrimaryBtn onClick={() => validate() && onNext()}>
         Continue <FiArrowRight size={15} />
       </PrimaryBtn>
     </div>
@@ -132,33 +112,38 @@ function StepBasicInfo({ data, patch, setData, onNext, role, loading: parentLoad
 // ═══════════════════════════════════════════════════════
 // STEP 1: Phone + OTP
 // ═══════════════════════════════════════════════════════
-function StepPhone({ data, patch, onNext, onBack, role }) {
+function StepPhone({ data, patch, onNext, onBack }) {
   const [otpSent, setOtpSent] = useState(false)
   const [otp, setOtp] = useState('')
   const [sending, setSending] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [resendCd, setResendCd] = useState(30)
+  const [resendCd, setResendCd] = useState(0)
   const [otpError, setOtpError] = useState('')
-  const { verifyEmail } = useAuth()
   const { showToast } = useToast()
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setResendCd(c => {
-        if (c <= 1) { clearInterval(t); return 0 }
-        return c - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
+  const startCd = () => {
+    setResendCd(30)
+    const t = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(t); return 0 } return c - 1 }), 1000)
+  }
+
+  const sendOtp = async () => {
+    if (!data.phone || data.phone.replace(/\D/g, '').length < 7) {
+      showToast('Enter a valid phone number.', 'error'); return
+    }
+    setSending(true)
+    await new Promise(r => setTimeout(r, 900))
+    setSending(false)
+    setOtpSent(true)
+    startCd()
+    showToast('OTP sent! Use 123456 for demo.', 'info')
+  }
 
   const verifyOtp = async () => {
     if (otp.length < 6) { setOtpError('Enter the 6-digit OTP.'); return }
     setVerifying(true)
-    // Call real backend email verification
-    const result = await verifyEmail({ email: data.email, otp, role })
+    await new Promise(r => setTimeout(r, 800))
     setVerifying(false)
-    if (!result.ok) { setOtpError(result.error || 'Incorrect OTP.'); return }
+    if (otp !== '123456') { setOtpError('Incorrect OTP. Use 123456 in demo.'); return }
     setOtpError('')
     patch('phoneVerified')({ target: { value: true } })
     onNext()
@@ -167,20 +152,34 @@ function StepPhone({ data, patch, onNext, onBack, role }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <BackBtn onClick={onBack} />
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-          <FiMail size={22} style={{ color: '#093880' }} />
-        </div>
-        <p style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>OTP sent to {data.email}</p>
-        <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Enter the 6-digit code below</p>
-      </div>
-      <OtpInput value={otp} onChange={setOtp} />
-      {otpError && <p style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{otpError}</p>}
-      <PrimaryBtn onClick={verifyOtp} loading={verifying}>Verify & Continue</PrimaryBtn>
-      <button type="button" onClick={resendCd > 0 ? undefined : () => showToast('Check your spam folder!', 'info')}
-        style={{ background: 'none', border: 'none', cursor: resendCd > 0 ? 'default' : 'pointer', fontSize: 13, color: resendCd > 0 ? '#9ca3af' : '#093880', fontWeight: 600, textAlign: 'center' }}>
-        {resendCd > 0 ? `Resend OTP in ${resendCd}s` : 'Resend OTP'}
-      </button>
+      {!otpSent ? (
+        <>
+          <AuthInput id="su-phone" icon={FiPhone} type="tel"
+            placeholder="Phone number (+977 98XXXXXXXX)" value={data.phone}
+            onChange={patch('phone')} />
+          <p style={{ fontSize: 12, color: '#6b7280' }}>
+            We'll send a 6-digit OTP to verify your number.
+          </p>
+          <PrimaryBtn onClick={sendOtp} loading={sending}>Send OTP</PrimaryBtn>
+        </>
+      ) : (
+        <>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <FiPhone size={22} style={{ color: '#093880' }} />
+            </div>
+            <p style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>OTP sent to {data.phone}</p>
+            <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Enter the 6-digit code below</p>
+          </div>
+          <OtpInput value={otp} onChange={setOtp} />
+          {otpError && <p style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{otpError}</p>}
+          <PrimaryBtn onClick={verifyOtp} loading={verifying}>Verify & Continue</PrimaryBtn>
+          <button type="button" onClick={resendCd > 0 ? undefined : sendOtp}
+            style={{ background: 'none', border: 'none', cursor: resendCd > 0 ? 'default' : 'pointer', fontSize: 13, color: resendCd > 0 ? '#9ca3af' : '#093880', fontWeight: 600, textAlign: 'center' }}>
+            {resendCd > 0 ? `Resend OTP in ${resendCd}s` : 'Resend OTP'}
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -296,7 +295,7 @@ function StepPropertyVerify({ data, setData, onNext, onBack }) {
 // ═══════════════════════════════════════════════════════
 // SUCCESS SCREEN
 // ═══════════════════════════════════════════════════════
-function StepSuccess({ role, name, onLoginClick }) {
+function StepSuccess({ role, name }) {
   const navigate = useNavigate()
   const isHost = role === 'vendor'
   const badges = isHost
@@ -330,7 +329,7 @@ function StepSuccess({ role, name, onLoginClick }) {
           ))}
         </div>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-          onClick={onLoginClick || (() => navigate('/auth?mode=login'))}
+          onClick={() => navigate('/auth?mode=login')}
           style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(9,56,128,0.28)', fontFamily: "'Poppins', sans-serif" }}>
           Go to Login
         </motion.button>
@@ -348,7 +347,7 @@ function StepSuccess({ role, name, onLoginClick }) {
 // ═══════════════════════════════════════════════════════
 export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
   const isVendor = role === 'vendor'
-  const TOTAL_STEPS = isVendor ? 3 : 2
+  const TOTAL_STEPS = isVendor ? 4 : 3
   const { signup } = useAuth()
   const { showToast } = useToast()
 
@@ -368,25 +367,24 @@ export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
 
   const go = (n) => { setDir(n > step ? 1 : -1); setStep(n) }
 
-  // After basic info → register with backend, then continue to email verification
-  const handleSignup = async () => {
+  // After identity step → register, then continue
+  const handleIdentityNext = async () => {
     setSubmitting(true)
     const result = await signup({
-      full_name: data.name, email: data.email, password: data.password, role,
-      phone: data.phone, document: data.idFile
+      name: data.name, email: data.email, password: data.password, role,
+      phone: data.phone, phoneVerified: data.phoneVerified,
+      idVerified: data.idVerified,
+      propName: data.propName, propLocation: data.propLocation, propDesc: data.propDesc,
     })
     setSubmitting(false)
     if (!result.ok) { showToast(result.error, 'error'); return }
-    if (result.needsVerification) {
-      showToast('Account created! Check your email for the verification OTP.', 'success')
-    }
-    // Move to phone/OTP step which now handles email verification
-    go(1)
+    if (isVendor) { go(3) } else { setDone(true) }
   }
 
   const HEADERS = [
     { title: 'Create your account', sub: 'Enter your basic information to get started.' },
-    { title: 'Verify your email', sub: "We'll send an OTP to confirm your email." },
+    { title: 'Verify your phone', sub: "We'll send an OTP to confirm your number." },
+    { title: 'Identity verification', sub: 'Keeps our community safe and trusted.' },
     ...(isVendor ? [{ title: 'Property ownership', sub: 'Required to list and manage properties.' }] : []),
   ]
   const h = HEADERS[step] || HEADERS[HEADERS.length - 1]
@@ -418,7 +416,7 @@ export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
           </div>
         </div>
         <div style={{ padding: '32px 36px' }}>
-          <StepSuccess role={role} name={data.name} onLoginClick={onSwitchToLogin} />
+          <StepSuccess role={role} name={data.name} />
         </div>
       </AuthCard>
     )
@@ -433,13 +431,16 @@ export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
           <motion.div key={`step-${step}`} custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
             transition={{ duration: 0.25, ease: 'easeInOut' }}>
             {step === 0 && (
-              <StepBasicInfo data={data} patch={patch} setData={setData} onNext={handleSignup} role={role} loading={submitting} />
+              <StepBasicInfo data={data} patch={patch} onNext={() => go(1)} role={role} />
             )}
             {step === 1 && (
-              <StepPhone data={data} patch={patch} onNext={() => { if (isVendor) go(2); else setDone(true) }} onBack={() => go(0)} role={role} />
+              <StepPhone data={data} patch={patch} onNext={() => go(2)} onBack={() => go(0)} />
             )}
-            {step === 2 && isVendor && (
-              <StepPropertyVerify data={data} setData={setData} onNext={() => setDone(true)} onBack={() => go(1)} />
+            {step === 2 && (
+              <StepIdentity data={data} setData={setData} onNext={handleIdentityNext} onBack={() => go(1)} />
+            )}
+            {step === 3 && isVendor && (
+              <StepPropertyVerify data={data} setData={setData} onNext={() => setDone(true)} onBack={() => go(2)} />
             )}
           </motion.div>
         </AnimatePresence>

@@ -1,5 +1,5 @@
 /**
- * auth/LoginView.jsx — Login with email+password against backend API
+ * auth/LoginView.jsx — Clean login with Google, email+password, remember me, forgot password
  */
 import { useState } from 'react'
 import { motion } from 'framer-motion'
@@ -12,8 +12,8 @@ import { AuthInput, PasswordInput } from './AuthInput'
 import AuthCard from './AuthCard'
 import AuthHeader from './AuthHeader'
 
-export default function LoginView({ onSwitchToSignup, onForgotPassword, defaultRole }) {
-  const [form, setForm] = useState({ email: '', password: '', remember: false, role: defaultRole || 'user' })
+export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
+  const [form, setForm] = useState({ email: '', password: '', remember: false })
   const [errors, setErrors] = useState({})
   const { login, loading } = useAuth()
   const { showToast } = useToast()
@@ -32,7 +32,7 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword, defaultR
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
-    const result = await login({ email: form.email, password: form.password, role: form.role })
+    const result = await login({ email: form.email, password: form.password })
     if (!result.ok) {
       setErrors({ submit: result.error })
       return
@@ -53,23 +53,6 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword, defaultR
           onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}>
           <FiArrowLeft size={14} /> Back to home
         </button>
-
-        {/* Role toggle */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {[
-            { id: 'user', label: 'Guest' },
-            { id: 'vendor', label: 'Host' },
-          ].map(r => (
-            <button key={r.id} type="button" onClick={() => setForm(f => ({ ...f, role: r.id }))}
-              style={{
-                flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${form.role === r.id ? '#093880' : '#e5e7eb'}`,
-                background: form.role === r.id ? '#eff6ff' : '#fff', color: form.role === r.id ? '#093880' : '#6b7280',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
-              }}>
-              {r.label}
-            </button>
-          ))}
-        </div>
 
         {/* Google */}
         <button type="button"
@@ -132,7 +115,7 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword, defaultR
       <div style={{ padding: '0 36px 24px', textAlign: 'center' }}>
         <p style={{ fontSize: 13, color: '#6b7280' }}>
           Don't have an account?{' '}
-          <button type="button" onClick={() => onSwitchToSignup(form.role)}
+          <button type="button" onClick={onSwitchToSignup}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#093880', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}>
             Sign up free
           </button>
