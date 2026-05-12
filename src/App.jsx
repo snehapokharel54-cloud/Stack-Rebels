@@ -11,6 +11,7 @@ import BookingHistoryPage from './pages/BookingHistoryPage'
 import NotificationsPage from './pages/NotificationsPage'
 import AdminDashboard from './pages/AdminDashboard'
 import ReviewsPage from './pages/ReviewsPage'
+import HostProfilePage from './pages/HostProfilePage'
 
 function RoleRedirect() {
   const { user } = useAuth()
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/home" element={<ProtectedRoute requiredRole="user"><UserHome /></ProtectedRoute>} />
       <Route path="/property/:id" element={<ProtectedRoute requiredRole="user"><PropertyDetail /></ProtectedRoute>} />
       <Route path="/property/:id/reviews" element={<ReviewsPage />} />
+      <Route path="/host/:hostId" element={<HostProfilePage />} />
       <Route path="/wishlist" element={<ProtectedRoute requiredRole="user"><WishlistPage /></ProtectedRoute>} />
       <Route path="/bookings" element={<ProtectedRoute requiredRole="user"><BookingHistoryPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute requiredRole="user"><NotificationsPage /></ProtectedRoute>} />

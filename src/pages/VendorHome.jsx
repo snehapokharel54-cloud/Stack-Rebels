@@ -1,27 +1,27 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   FiHome, FiPlus, FiList, FiCalendar, FiUser, FiLogOut,
   FiMenu, FiX, FiEdit2, FiTrash2, FiEye, FiCheck, FiClock, FiTrendingUp,
-  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell, FiMessageSquare,
+  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell, FiMessageSquare, FiShield,
 } from 'react-icons/fi'
 import { FaStar } from 'react-icons/fa'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useToast } from '../context/ToastContext'
+import KYCPage from './KYCPage'
 
 // ──────────────────────────────────────────────────
 // Sidebar config
 // ──────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: FiHome },
-  { id: 'add', label: 'Add Property', icon: FiPlus },
   { id: 'listings', label: 'My Listings', icon: FiList },
   { id: 'bookings', label: 'Bookings', icon: FiCalendar },
   { id: 'reviews', label: 'Reviews', icon: FiMessageSquare },
-  { id: 'profile', label: 'Profile', icon: FiUser },
+  { id: 'kyc', label: 'KYC / Verify', icon: FiShield },
 ]
 
 const ALL_AMENITIES = [
@@ -90,17 +90,18 @@ function BookingsChart({ data }) {
 // ──────────────────────────────────────────────────
 // Stat card
 // ──────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, sub, color, bg }) {
+function StatCard({ icon: Icon, label, value, sub, color, bg, gradient }) {
   return (
-    <motion.div whileHover={{ y: -4 }}
-      style={{ background: '#fff', borderRadius: 20, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-      <div style={{ width: 48, height: 48, borderRadius: 14, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={22} style={{ color }} />
+    <motion.div whileHover={{ y: -5, boxShadow: '0 12px 32px rgba(0,0,0,0.10)' }} transition={{ duration: 0.2 }}
+      style={{ background: '#fff', borderRadius: 20, padding: '22px 24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1.5px solid #f0f4ff', display: 'flex', alignItems: 'flex-start', gap: 16, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 80, height: 80, borderRadius: '0 20px 0 80px', background: bg, opacity: 0.5 }} />
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: gradient || bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 4px 14px ${color}33` }}>
+        <Icon size={22} style={{ color: gradient ? '#fff' : color }} />
       </div>
-      <div>
-        <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', lineHeight: 1 }}>{value}</p>
-        {sub && <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{sub}</p>}
+      <div style={{ position: 'relative' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 26, color: '#0f172a', lineHeight: 1 }}>{value}</p>
+        {sub && <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 5 }}>{sub}</p>}
       </div>
     </motion.div>
   )
@@ -109,34 +110,72 @@ function StatCard({ icon: Icon, label, value, sub, color, bg }) {
 // ──────────────────────────────────────────────────
 // SECTION: Overview dashboard
 // ──────────────────────────────────────────────────
-function DashboardOverview({ user, analytics, setSection }) {
+function DashboardOverview({ user, analytics, setSection, isKycVerified, kycStatus }) {
   const { totalListings, totalBookings, totalEarnings, occupancyRate, monthlyData, topProperty } = analytics
 
   return (
     <div>
-      <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 26, color: '#0f172a', marginBottom: 4 }}>
-          Welcome back, {user?.name?.split(' ')[0]}
+      {/* Welcome banner */}
+      <div style={{ background: 'linear-gradient(135deg,#093880 0%,#1a56c4 60%,#2563eb 100%)', borderRadius: 20, padding: '28px 32px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -30, right: 80, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+        <p style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Host Dashboard</p>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 28, color: '#fff', marginBottom: 6, lineHeight: 1.2 }}>
+          Welcome back, {user?.name?.split(' ')[0]} 👋
         </h2>
-        <p style={{ color: '#6b7280', fontSize: 14 }}>Here's how your properties are performing.</p>
+        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, margin: 0 }}>Here's how your properties are performing today.</p>
       </div>
 
+      {/* KYC alert */}
+      {!isKycVerified && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          style={{ background: kycStatus === 'pending' ? '#fffbeb' : '#fef2f2', border: `1.5px solid ${kycStatus === 'pending' ? '#fde68a' : '#fecaca'}`, borderRadius: 16, padding: '16px 20px', marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: kycStatus === 'pending' ? '#fef3c7' : '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FiShield size={18} style={{ color: kycStatus === 'pending' ? '#d97706' : '#ef4444' }} />
+            </div>
+            <div>
+              <p style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13, color: '#0f172a', margin: 0 }}>
+                {kycStatus === 'pending' ? 'KYC Under Review' : 'KYC Verification Required'}
+              </p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: 0, marginTop: 2 }}>
+                {kycStatus === 'pending'
+                  ? 'Your National ID is being reviewed. Listings will be unlocked once approved.'
+                  : 'Verify your National ID card to start listing properties on Grihastha.'}
+              </p>
+            </div>
+          </div>
+          {kycStatus !== 'pending' && (
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setSection('kyc')}
+              style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#093880,#1a56c4)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Poppins',sans-serif" }}>
+              Verify Now →
+            </motion.button>
+          )}
+        </motion.div>
+      )}
+
       {/* Stat cards */}
-      <div className="vendor-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
-        <StatCard icon={FiHome} label="Total Listings" value={totalListings} sub="Active properties" color="#093880" bg="#eff6ff" />
-        <StatCard icon={FiCalendar} label="Total Bookings" value={totalBookings} sub="Confirmed stays" color="#10b981" bg="#ecfdf5" />
-        <StatCard icon={FiDollarSign} label="Total Earnings" value={`NPR ${totalEarnings.toLocaleString()}`} sub="All-time revenue" color="#f59e0b" bg="#fffbeb" />
-        <StatCard icon={FiTrendingUp} label="Occupancy Rate" value={`${occupancyRate}%`} sub="Booked vs available" color="#6366f1" bg="#eef2ff" />
+      <div className="vendor-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 18, marginBottom: 28 }}>
+        <StatCard icon={FiHome} label="Total Listings" value={totalListings} sub="Active properties" color="#093880" bg="#eff6ff" gradient="linear-gradient(135deg,#093880,#1a56c4)" />
+        <StatCard icon={FiCalendar} label="Total Bookings" value={totalBookings} sub="Confirmed stays" color="#10b981" bg="#ecfdf5" gradient="linear-gradient(135deg,#059669,#10b981)" />
+        <StatCard icon={FiDollarSign} label="Total Earnings" value={`NPR ${totalEarnings.toLocaleString()}`} sub="All-time revenue" color="#f59e0b" bg="#fffbeb" gradient="linear-gradient(135deg,#d97706,#f59e0b)" />
+        <StatCard icon={FiTrendingUp} label="Occupancy Rate" value={`${occupancyRate}%`} sub="Booked vs available" color="#6366f1" bg="#eef2ff" gradient="linear-gradient(135deg,#4f46e5,#6366f1)" />
       </div>
 
       {/* Charts area */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 20 }}>
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0' }}>
-          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>Monthly Revenue (NPR)</h3>
+        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1.5px solid #f0f4ff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', margin: 0 }}>Monthly Revenue (NPR)</h3>
+            <span style={{ fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#093880', padding: '3px 10px', borderRadius: 999 }}>Last 6 months</span>
+          </div>
           <RevenueChart data={monthlyData} />
         </div>
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', border: '1.5px solid #f0f0f0' }}>
-          <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 20 }}>Bookings per Month</h3>
+        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', border: '1.5px solid #f0f4ff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', margin: 0 }}>Bookings per Month</h3>
+            <span style={{ fontSize: 11, fontWeight: 700, background: '#ecfdf5', color: '#059669', padding: '3px 10px', borderRadius: 999 }}>Trend</span>
+          </div>
           <BookingsChart data={monthlyData} />
         </div>
       </div>
@@ -144,30 +183,31 @@ function DashboardOverview({ user, analytics, setSection }) {
       {/* Insights row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'stretch' }}>
         {topProperty ? (
-          <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', borderRadius: 20, padding: '24px', color: '#fff', height: '100%' }}>
-            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.85, marginBottom: 8 }}>
+          <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', borderRadius: 20, padding: '24px', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -20, right: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+            <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.85, marginBottom: 10 }}>
               <FiStar size={12} /> Top Performer
             </p>
-            <h4 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{topProperty.title}</h4>
-            <p style={{ fontSize: 12, opacity: 0.75, marginBottom: 12 }}>{topProperty.location}</p>
-            <p style={{ fontSize: 13, fontWeight: 700 }}>NPR {topProperty.price?.toLocaleString()} / night</p>
+            <h4 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 17, marginBottom: 4 }}>{topProperty.title}</h4>
+            <p style={{ fontSize: 12, opacity: 0.7, marginBottom: 14 }}>{topProperty.location}</p>
+            <p style={{ fontSize: 14, fontWeight: 800, background: 'rgba(255,255,255,0.15)', display: 'inline-block', padding: '6px 14px', borderRadius: 10 }}>NPR {topProperty.price?.toLocaleString()} / night</p>
           </div>
         ) : (
-          <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', height: '100%' }}>
-            <div style={{ marginBottom: 8 }}><FiHome size={36} style={{ color: '#9ca3af' }} /></div>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '32px 24px', border: '1.5px solid #f0f4ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}><FiHome size={26} style={{ color: '#94a3b8' }} /></div>
             <p style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 4 }}>No top performer yet</p>
-            <p style={{ fontSize: 12, color: '#6b7280' }}>Add properties to see insights</p>
+            <p style={{ fontSize: 12, color: '#94a3b8' }}>Add properties to see insights</p>
           </div>
         )}
-
-        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f0f0', boxShadow: '0 2px 20px rgba(0,0,0,0.06)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#9ca3af', marginBottom: 12 }}>Quick Actions</p>
+        <div style={{ background: '#fff', borderRadius: 20, padding: '24px', border: '1.5px solid #f0f4ff', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#9ca3af', marginBottom: 14 }}>Quick Actions</p>
           {[
-            { label: '+ Add New Property', action: () => setSection('add'), style: { background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff' } },
-            { label: 'View All Bookings', action: () => setSection('bookings'), style: { background: '#f9fafb', color: '#374151', border: '1.5px solid #e5e7eb' } },
+            { label: '+ Add New Property', action: () => setSection('add'), style: { background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', boxShadow: '0 4px 16px rgba(9,56,128,0.25)' } },
+            { label: 'View All Bookings', action: () => setSection('bookings'), style: { background: '#f1f5f9', color: '#374151', border: '1.5px solid #e2e8f0' } },
+            { label: 'My Listings', action: () => setSection('listings'), style: { background: '#f1f5f9', color: '#374151', border: '1.5px solid #e2e8f0' } },
           ].map((btn, i) => (
             <motion.button key={i} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={btn.action}
-              style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 12, border: btn.style.border || 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: i === 1 ? 0 : 10, fontFamily: "'Poppins', sans-serif", ...btn.style }}>
+              style={{ display: 'block', width: '100%', padding: '12px', borderRadius: 12, border: btn.style.border || 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: i < 2 ? 10 : 0, fontFamily: "'Poppins', sans-serif", transition: 'all 0.2s', ...btn.style }}>
               {btn.label}
             </motion.button>
           ))}
@@ -388,13 +428,14 @@ function MyListings({ user, setSection }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {props.map((p, i) => (
             <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              style={{ background: '#fff', borderRadius: 18, border: '1.5px solid #f0f0f0', padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
-              <img src={p.image} alt={p.title} style={{ width: 100, height: 80, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
+              whileHover={{ boxShadow: '0 8px 28px rgba(0,0,0,0.09)' }}
+              style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #f0f4ff', padding: '18px 20px', display: 'flex', gap: 18, alignItems: 'flex-start', boxShadow: '0 2px 12px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}>
+              <img src={p.image} alt={p.title} style={{ width: 110, height: 86, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 {editingId === p.id ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                      style={{ padding: '8px 12px', borderRadius: 10, border: '1.5px solid #093880', fontSize: 13, outline: 'none' }} />
+                      style={{ padding: '8px 12px', borderRadius: 10, border: '1.5px solid #093880', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input placeholder="Location" value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
                         style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }} />
@@ -402,24 +443,25 @@ function MyListings({ user, setSection }) {
                         style={{ width: 100, padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }} />
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={saveEdit} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: '#093880', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
-                      <button onClick={() => setEditingId(null)} style={{ padding: '8px 16px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={saveEdit} style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#093880,#1a56c4)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{ padding: '8px 16px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#6b7280' }}>Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 4 }}>{p.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                      <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#111827', margin: 0 }}>{p.title}</h3>
+                      {p.approvalStatus === 'pending' && <span style={{ background: '#fffbeb', color: '#d97706', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, border: '1px solid #fde68a', flexShrink: 0 }}>⏳ Pending</span>}
+                      {p.approvalStatus === 'approved' && <span style={{ background: '#ecfdf5', color: '#16a34a', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, flexShrink: 0 }}>✅ Approved</span>}
+                      {p.approvalStatus === 'rejected' && <span style={{ background: '#fef2f2', color: '#dc2626', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, flexShrink: 0 }}>❌ Rejected</span>}
+                    </div>
                     <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>{p.location} · <span style={{ textTransform: 'capitalize' }}>{p.category}</span></p>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#093880' }}>NPR {p.price?.toLocaleString()}/night</span>
                       <span style={{ fontSize: 12, color: '#9ca3af' }}>{p.bedrooms} bed · {p.maxGuests} guests</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {/* Approval status badge */}
-                      {p.approvalStatus === 'pending' && <span style={{ background: '#fffbeb', color: '#d97706', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, border: '1px solid #fde68a' }}>⏳ Pending Approval</span>}
-                      {p.approvalStatus === 'approved' && <span style={{ background: '#ecfdf5', color: '#16a34a', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999 }}>✅ Approved</span>}
-                      {p.approvalStatus === 'rejected' && <span style={{ background: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999 }}>❌ Rejected</span>}
-                      <button onClick={() => startEdit(p)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => startEdit(p)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
                         <FiEdit2 size={12} /> Edit
                       </button>
                       <button onClick={() => setConfirm(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', borderRadius: 10, border: '1.5px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#dc2626' }}>
@@ -481,21 +523,22 @@ function HostBookingsSection({ user }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {bookings.map((b, i) => (
             <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #f0f0f0', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+              style={{ background: '#fff', borderRadius: 18, border: `1.5px solid ${b.status === 'confirmed' ? '#d1fae5' : '#fee2e2'}`, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                <img src={b.propertyImage} alt="" style={{ width: 64, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+                <img src={b.propertyImage} alt="" style={{ width: 70, height: 56, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.propertyTitle}</p>
-                  <p style={{ fontSize: 12, color: '#6b7280' }}>By {b.userName} · {b.checkIn} → {b.checkOut}</p>
-                  <p style={{ fontSize: 12, color: '#6b7280' }}>{b.guests} guest{b.guests > 1 ? 's' : ''}</p>
+                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.propertyTitle}</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Guest: <strong style={{ color: '#374151' }}>{b.userName}</strong></p>
+                  <p style={{ fontSize: 12, color: '#9ca3af' }}>{b.checkIn} → {b.checkOut} · {b.guests} guest{b.guests > 1 ? 's' : ''}</p>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 14, color: '#093880' }}>NPR {b.totalPrice?.toLocaleString()}</p>
+                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 15, color: '#093880' }}>NPR {b.totalPrice?.toLocaleString()}</p>
+                  <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Total</p>
                 </div>
-                <span style={{ background: b.status === 'confirmed' ? '#ecfdf5' : '#fef2f2', color: b.status === 'confirmed' ? '#16a34a' : '#dc2626', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>
-                  {b.status === 'confirmed' ? 'Confirmed' : 'Cancelled'}
+                <span style={{ background: b.status === 'confirmed' ? '#ecfdf5' : '#fef2f2', color: b.status === 'confirmed' ? '#16a34a' : '#dc2626', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: `1px solid ${b.status === 'confirmed' ? '#86efac' : '#fecaca'}` }}>
+                  {b.status === 'confirmed' ? '✓ Confirmed' : '✕ Cancelled'}
                 </span>
               </div>
             </motion.div>
@@ -618,33 +661,37 @@ function HostReviewsSection({ user }) {
 function ProfileSection({ user, onLogout }) {
   return (
     <div>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', marginBottom: 28 }}>Profile</h2>
-      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1.5px solid #f0f0f0', overflow: 'hidden', maxWidth: 500 }}>
-        <div style={{ background: 'linear-gradient(135deg, #093880, #1a56c4)', padding: '32px', display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#093880', fontWeight: 900, fontSize: 28, fontFamily: "'Poppins', sans-serif" }}>
-            {user?.avatar}
-          </div>
-          <div style={{ color: '#fff' }}>
-            <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, marginBottom: 4 }}>{user?.name}</h3>
-            <p style={{ opacity: 0.75, fontSize: 14 }}>{user?.email}</p>
-            <span style={{ background: 'rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, marginTop: 8, display: 'inline-block' }}>Host Account</span>
-          </div>
-        </div>
-        <div style={{ padding: '24px 28px' }}>
-          {[
-            { label: 'Full Name', value: user?.name },
-            { label: 'Email', value: user?.email },
-            { label: 'Account Type', value: 'Host (Vendor)' },
-          ].map(item => (
-            <div key={item.label} style={{ padding: '14px 0', borderBottom: '1px solid #f0f0f0' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{item.value}</p>
+      <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', marginBottom: 24 }}>My Profile</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 780 }}>
+        {/* Profile card */}
+        <div style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 24, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1.5px solid #f0f4ff', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(135deg,#0a2342,#093880,#1a56c4)', padding: '32px 28px', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: -30, right: -30, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+            <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 30, fontFamily: "'Poppins', sans-serif", flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+              {user?.avatar}
             </div>
-          ))}
-          <motion.button id="profile-logout-btn" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onLogout}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, padding: '12px 24px', borderRadius: 14, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            <FiLogOut size={16} /> Sign Out
-          </motion.button>
+            <div style={{ color: '#fff' }}>
+              <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 4 }}>{user?.name}</h3>
+              <p style={{ opacity: 0.7, fontSize: 14, marginBottom: 8 }}>{user?.email}</p>
+              <span style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 999, display: 'inline-block' }}>Host Account</span>
+            </div>
+          </div>
+          <div style={{ padding: '24px 28px' }}>
+            {[
+              { label: 'Full Name', value: user?.name },
+              { label: 'Email Address', value: user?.email },
+              { label: 'Account Type', value: 'Host (Property Owner)' },
+            ].map((item, i, arr) => (
+              <div key={item.label} style={{ padding: '14px 0', borderBottom: i < arr.length - 1 ? '1px solid #f0f4ff' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{item.value}</p>
+              </div>
+            ))}
+            <motion.button id="profile-logout-btn" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onLogout}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, padding: '12px 24px', borderRadius: 14, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              <FiLogOut size={16} /> Sign Out
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
@@ -657,21 +704,74 @@ function ProfileSection({ user, onLogout }) {
 export default function VendorHome() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { getHostAnalytics } = useAppData()
+  const { getHostAnalytics, getUserKYC } = useAppData()
 
   const [section, setSection] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef(null)
 
   const handleLogout = () => { logout(); navigate('/') }
   const analytics = getHostAnalytics(user?.email)
 
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => { if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const kycData = getUserKYC?.(user?.email) || { status: 'not_submitted' }
+  const isKycVerified = kycData.status === 'verified'
+
+  // KYC Gate — shown when host tries to access gated sections without verification
+  const KYCGate = () => (
+    <div style={{ maxWidth: 520 }}>
+      <div style={{ background: '#fff', borderRadius: 22, border: '1.5px solid #fee2e2', boxShadow: '0 4px 24px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg,#fef2f2,#fff7ed)', padding: '32px', textAlign: 'center', borderBottom: '1px solid #fde8d8' }}>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: '#fff', border: '2px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(239,68,68,0.12)' }}>
+            <FiShield size={30} style={{ color: '#ef4444' }} />
+          </div>
+          <h3 style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, color: '#0f172a', marginBottom: 8 }}>KYC Verification Required</h3>
+          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
+            You need to verify your identity with a <strong>National ID card</strong> before you can list or manage properties.
+          </p>
+        </div>
+        <div style={{ padding: '24px 28px' }}>
+          {[
+            { icon: '🪪', text: 'Upload your National ID card (front & back)' },
+            { icon: '⏱️', text: 'Admin reviews and approves within 1–2 days' },
+            { icon: '✅', text: 'Once verified, you can list properties' },
+          ].map((s, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: i < 2 ? 14 : 0 }}>
+              <span style={{ fontSize: 20 }}>{s.icon}</span>
+              <p style={{ fontSize: 13, color: '#374151', margin: 0 }}>{s.text}</p>
+            </div>
+          ))}
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            onClick={() => setSection('kyc')}
+            style={{ marginTop: 24, width: '100%', padding: '13px', borderRadius: 13, border: 'none', background: 'linear-gradient(135deg,#093880,#1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Poppins',sans-serif", boxShadow: '0 4px 16px rgba(9,56,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <FiShield size={15} /> Complete KYC Verification
+          </motion.button>
+          {kycData.status === 'pending' && (
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#f59e0b', marginTop: 12, fontWeight: 600 }}>
+              ⏳ Your ID is currently under review. Please wait for admin approval.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
   const renderSection = () => {
     switch (section) {
-      case 'dashboard': return <DashboardOverview user={user} analytics={analytics} setSection={setSection} />
-      case 'add': return <AddPropertyForm user={user} onSuccess={() => setSection('listings')} />
-      case 'listings': return <MyListings user={user} setSection={setSection} />
+      case 'dashboard': return <DashboardOverview user={user} analytics={analytics} setSection={setSection} isKycVerified={isKycVerified} kycStatus={kycData.status} />
+      case 'add': return isKycVerified ? <AddPropertyForm user={user} onSuccess={() => setSection('listings')} /> : <KYCGate />
+      case 'listings': return isKycVerified ? <MyListings user={user} setSection={setSection} /> : <KYCGate />
       case 'bookings': return <HostBookingsSection user={user} />
       case 'reviews': return <HostReviewsSection user={user} />
+      case 'kyc': return <KYCPage onBack={() => setSection('dashboard')} />
       case 'profile': return <ProfileSection user={user} onLogout={handleLogout} />
       default: return null
     }
@@ -679,83 +779,81 @@ export default function VendorHome() {
 
   const Sidebar = ({ isMobile = false }) => (
     <div style={{
-      width: isMobile ? '100%' : 240,
-      background: '#fff',
-      borderRight: isMobile ? 'none' : '1.5px solid #f0f0f0',
+      width: isMobile ? '100%' : 252,
+      background: 'linear-gradient(180deg, #0a2342 0%, #0d2d5e 60%, #093880 100%)',
+      borderRight: 'none',
       display: 'flex',
       flexDirection: 'column',
       height: isMobile ? 'auto' : '100vh',
       position: isMobile ? 'relative' : 'sticky',
       top: 0,
       flexShrink: 0,
+      boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 24px', borderBottom: '1.5px solid #f0f0f0' }}>
+      <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 12, background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 12, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.2)' }}>
             <FiHome style={{ color: '#fff' }} size={18} />
           </div>
           <div>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: '#093880' }}>Grihastha</span>
-            <p style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>Host Portal</p>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 17, color: '#fff', letterSpacing: '-0.3px' }}>Grihastha</span>
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Host Portal</p>
           </div>
         </div>
       </div>
 
       {/* User chip */}
-      <div style={{ padding: '16px 20px', borderBottom: '1.5px solid #f0f0f0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: '#f9fafb' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,0.08)' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #4f8ef7, #93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 14, flexShrink: 0, fontFamily: "'Poppins', sans-serif" }}>
             {user?.avatar}
           </div>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
-            <p style={{ fontSize: 11, color: '#9ca3af' }}>Host</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Host Account</p>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '10px 10px 6px' }}>Menu</p>
         {NAV_ITEMS.map(item => {
           const active = section === item.id
           return (
             <motion.button key={item.id} id={`nav-${item.id}`}
-              whileHover={{ x: 2 }} whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => { setSection(item.id); setSidebarOpen(false) }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, width: '100%', textAlign: 'left', transition: 'all 0.2s',
-                background: active ? 'linear-gradient(135deg, #093880, #1a56c4)' : 'transparent',
-                color: active ? '#fff' : '#6b7280',
+                display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, width: '100%', textAlign: 'left', transition: 'all 0.18s',
+                background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+                color: active ? '#fff' : 'rgba(255,255,255,0.55)',
                 fontFamily: "'Open Sans', sans-serif",
+                boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,0.12)' : 'none',
               }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f3f4f6' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#fff' } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)' } }}
             >
-              <item.icon size={16} />
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.18s' }}>
+                <item.icon size={15} />
+              </div>
               {item.label}
               {item.id === 'add' && (
-                <span style={{ marginLeft: 'auto', width: 20, height: 20, borderRadius: '50%', background: active ? 'rgba(255,255,255,0.3)' : '#093880', color: '#fff', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</span>
+                <span style={{ marginLeft: 'auto', width: 20, height: 20, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</span>
               )}
+              {active && <div style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: '#60a5fa', flexShrink: 0 }} />}
             </motion.button>
           )
         })}
       </nav>
 
-      {/* Logout */}
-      <div style={{ padding: '12px 12px', borderTop: '1.5px solid #f0f0f0' }}>
-        <button onClick={handleLogout}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, width: '100%', background: 'transparent', color: '#9ca3af', transition: 'all 0.2s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af' }}>
-          <FiLogOut size={16} /> Sign Out
-        </button>
-      </div>
+      {/* Sign out moved to top bar profile dropdown */}
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#f9fafb', fontFamily: "'Open Sans', sans-serif" }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#f1f5f9', fontFamily: "'Open Sans', sans-serif" }}>
       {/* Desktop sidebar */}
       <div style={{ display: 'flex' }} className="desktop-sidebar">
         <Sidebar />
@@ -780,23 +878,79 @@ export default function VendorHome() {
       {/* Main content */}
       <div className="vendor-main-content" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxWidth: '100%', overflowX: 'hidden' }}>
         {/* Top bar */}
-        <div className="vendor-top-bar" style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1.5px solid #f0f0f0', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
+        <div className="vendor-top-bar" style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderBottom: '1.5px solid #f0f0f0', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 12px rgba(0,0,0,0.05)' }}>
+          {/* Left: mobile sidebar toggle + page title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => setSidebarOpen(o => !o)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
+            <button
+              className="vendor-mobile-menu-btn"
+              onClick={() => setSidebarOpen(o => !o)}
+              style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
               <FiMenu size={18} style={{ color: '#374151' }} />
             </button>
-            <div>
-              <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
-                {NAV_ITEMS.find(n => n.id === section)?.label}
-              </p>
-            </div>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+              {NAV_ITEMS.find(n => n.id === section)?.label ?? 'Host Portal'}
+            </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          {/* Right: profile pill + dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => navigate('/home')}
-              style={{ padding: '8px 16px', borderRadius: 10, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
+              style={{ padding: '7px 14px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
               Browse as Guest
             </motion.button>
+
+            {/* Profile dropdown */}
+            <div ref={profileRef} style={{ position: 'relative' }}>
+              <motion.button
+                id="host-profile-btn"
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                onClick={() => setProfileOpen(o => !o)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Poppins', sans-serif" }}>
+                  {user?.avatar}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name?.split(' ')[0]}</span>
+              </motion.button>
+
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 220, background: '#fff', borderRadius: 18, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', border: '1.5px solid #f0f0f0', overflow: 'hidden', zIndex: 300 }}>
+                    {/* User info header */}
+                    <div style={{ padding: '16px 18px', borderBottom: '1px solid #f0f0f0' }}>
+                      <p style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{user?.name}</p>
+                      <p style={{ fontSize: 12, color: '#9ca3af' }}>Host Account</p>
+                    </div>
+                    {/* Nav shortcuts */}
+                    {[
+                      { label: 'Dashboard', icon: FiHome, action: () => { setSection('dashboard'); setProfileOpen(false) } },
+                      { label: 'My Listings', icon: FiList, action: () => { setSection('listings'); setProfileOpen(false) } },
+                      { label: 'Bookings', icon: FiCalendar, action: () => { setSection('bookings'); setProfileOpen(false) } },
+                      { label: 'Profile', icon: FiUser, action: () => { setSection('profile'); setProfileOpen(false) } },
+                    ].map(item => (
+                      <button key={item.label} onClick={item.action}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 18px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'left', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                        <item.icon size={14} style={{ color: '#6b7280' }} /> {item.label}
+                      </button>
+                    ))}
+                    {/* Sign out */}
+                    <div style={{ borderTop: '1px solid #f0f0f0', padding: '8px 8px' }}>
+                      <button onClick={() => { setProfileOpen(false); handleLogout() }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#dc2626', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <FiLogOut size={14} /> Sign Out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -837,6 +991,7 @@ export default function VendorHome() {
 
         @media (max-width: 768px) {
           .desktop-sidebar { display: none !important; }
+          .vendor-mobile-menu-btn { display: flex !important; }
 
           .vendor-page-content {
             padding: 20px !important;

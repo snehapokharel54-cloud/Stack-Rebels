@@ -11,6 +11,10 @@ const STORAGE_KEYS = {
   propertyViews: 'grihastha_property_views',
   reviews: 'grihastha_reviews',
   adminUsers: 'grihastha_admin_users',
+  kycRecords: 'grihastha_kyc_records',
+  credits: 'grihastha_credits',
+  creditLog: 'grihastha_credit_log',
+  auditLog: 'grihastha_audit_log',
 }
 
 function loadFromStorage(key, fallback) {
@@ -53,6 +57,10 @@ export function AppDataProvider({ children }) {
   const [propertyViews, setPropertyViews] = useState(() => loadFromStorage(STORAGE_KEYS.propertyViews, {}))
   const [reviews, setReviews] = useState(() => loadFromStorage(STORAGE_KEYS.reviews, DEFAULT_REVIEWS))
   const [adminUsers, setAdminUsers] = useState(() => loadFromStorage(STORAGE_KEYS.adminUsers, DEFAULT_ADMIN_USERS))
+  const [kycRecords, setKycRecords] = useState(() => loadFromStorage(STORAGE_KEYS.kycRecords, {}))
+  const [credits, setCredits] = useState(() => loadFromStorage(STORAGE_KEYS.credits, {}))
+  const [creditLog, setCreditLog] = useState(() => loadFromStorage(STORAGE_KEYS.creditLog, []))
+  const [auditLog, setAuditLog] = useState(() => loadFromStorage(STORAGE_KEYS.auditLog, []))
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [priceRange, setPriceRange] = useState([0, 15000])
@@ -65,6 +73,10 @@ export function AppDataProvider({ children }) {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.propertyViews, JSON.stringify(propertyViews)) }, [propertyViews])
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(reviews)) }, [reviews])
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.adminUsers, JSON.stringify(adminUsers)) }, [adminUsers])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.kycRecords, JSON.stringify(kycRecords)) }, [kycRecords])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.credits, JSON.stringify(credits)) }, [credits])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.creditLog, JSON.stringify(creditLog)) }, [creditLog])
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.auditLog, JSON.stringify(auditLog)) }, [auditLog])
 
   // All available properties = static (always approved) + approved host-uploaded
   const allProperties = [
@@ -235,6 +247,63 @@ export function AppDataProvider({ children }) {
       [propertyId]: (prev[propertyId] || []).filter(r => r.id !== reviewId),
     }))
   }, [])
+
+  // ─── Audit Log ───────────────────────────────────────────────────────────
+  const addAuditLog = useCallback((entry) => {
+    const log = { id: `al_${Date.now()}`, timestamp: new Date().toISOString(), ...entry }
+    setAuditLog(prev => [log, ...prev.slice(0, 199)])
+  }, [])
+
+  // ─── KYC ─────────────────────────────────────────────────────────────────
+  const getUserKYC = useCallback((email) => kycRecords[email] || { status: 'not_submitted' }, [kycRecords])
+
+  const submitKYC = useCallback(({ email, ...docNames }) => {
+    setKycRecords(prev => ({
+      ...prev,
+      [email]: { status: 'pending', submittedAt: new Date().toISOString(), ...docNames, rejectionReason: null },
+    }))
+  }, [])
+
+  const adminApproveKYC = useCallback((email) => {
+    setKycRecords(prev => ({ ...prev, [email]: { ...prev[email], status: 'verified', reviewedAt: new Date().toISOString() } }))
+    addAuditLog({ action: 'KYC Approved', targetEmail: email, details: 'Identity verified' })
+  }, [addAuditLog])
+
+  const adminRejectKYC = useCallback((email, reason) => {
+    setKycRecords(prev => ({ ...prev, [email]: { ...prev[email], status: 'rejected', rejectionReason: reason, reviewedAt: new Date().toISOString() } }))
+    addAuditLog({ action: 'KYC Rejected', targetEmail: email, details: reason })
+  }, [addAuditLog])
+
+  const getAllKYCRecords = useCallback(() => kycRecords, [kycRecords])
+
+  // ─── Credits ─────────────────────────────────────────────────────────────
+  const getUserCredits = useCallback((email) => credits[email] || 0, [credits])
+
+  const adminAdjustCredits = useCallback((targetEmail, amount, reason, adminName) => {
+    setCredits(prev => ({ ...prev, [targetEmail]: Math.max(0, (prev[targetEmail] || 0) + amount) }))
+    const entry = { id: `cr_${Date.now()}`, date: new Date().toISOString(), admin: adminName || 'Admin', userEmail: targetEmail, amount, reason }
+    setCreditLog(prev => [entry, ...prev])
+    addAuditLog({ action: amount > 0 ? 'Credits Added' : 'Credits Deducted', targetEmail, details: `${Math.abs(amount)} credits — ${reason}` })
+  }, [credits, addAuditLog])
+
+  // ─── Admin role management ────────────────────────────────────────────────
+  const adminChangeRole = useCallback((userId, newRole, adminName) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'Role Changed', targetEmail: user?.email || userId, details: `Role changed to ${newRole}` })
+  }, [adminUsers, addAuditLog])
+
+  const adminSuspendUser = useCallback((userId, reason, duration, adminName) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'suspended', suspendReason: reason, suspendDuration: duration } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'User Suspended', targetEmail: user?.email || userId, details: `${reason} (${duration})` })
+  }, [adminUsers, addAuditLog])
+
+  const adminUnsuspendUser = useCallback((userId) => {
+    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, status: 'active', suspendReason: null, suspendDuration: null } : u))
+    const user = adminUsers.find(u => u.id === userId)
+    addAuditLog({ action: 'User Unsuspended', targetEmail: user?.email || userId, details: 'Account restored' })
+  }, [adminUsers, addAuditLog])
 
   // ─── Host CRUD + Approval Flow ──────────────────────────────────────────
   const addHostProperty = useCallback((property, hostId, hostName) => {
@@ -428,10 +497,17 @@ export function AppDataProvider({ children }) {
       // Admin
       adminApproveProperty, adminRejectProperty,
       adminGetAllUsers, adminRemoveUser, adminRestoreUser,
+      adminChangeRole, adminSuspendUser, adminUnsuspendUser,
       registerUserInAdmin, getAdminStats,
       // Reviews
       reviews, getPropertyReviews, getPropertyAverageRating,
       hasUserReviewedProperty, canUserReview, submitReview, setReviewsAdmin,
+      // KYC
+      kycRecords, getUserKYC, submitKYC, adminApproveKYC, adminRejectKYC, getAllKYCRecords,
+      // Credits
+      credits, getUserCredits, adminAdjustCredits, creditLog,
+      // Audit
+      auditLog, addAuditLog,
     }}>
       {children}
     </AppDataContext.Provider>

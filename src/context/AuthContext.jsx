@@ -13,6 +13,34 @@ const normalizeEmail = (email = '') => email.trim().toLowerCase()
 const ADMIN_EMAIL = 'admin@grihastha.com'
 const ADMIN_PASSWORD = 'admin123'
 
+// ─── Pre-seeded demo accounts (always available, no signup needed) ────────────
+const DEFAULT_ACCOUNTS = [
+  {
+    name: 'Demo Guest',
+    email: 'guest@grihastha.com',
+    password: 'guest123',
+    role: 'user',
+    phone: '9800000001',
+    phoneVerified: true,
+    idVerified: true,
+    propName: '', propLocation: '', propDesc: '',
+    createdAt: '2025-01-01T00:00:00.000Z',
+    badges: ['phone_verified', 'id_verified', 'guest'],
+  },
+  {
+    name: 'Demo Host',
+    email: 'host@grihastha.com',
+    password: 'host123',
+    role: 'vendor',
+    phone: '9800000002',
+    phoneVerified: true,
+    idVerified: true,
+    propName: 'Sunset Villa', propLocation: 'Pokhara', propDesc: 'Lakeside property',
+    createdAt: '2025-01-01T00:00:00.000Z',
+    badges: ['phone_verified', 'id_verified', 'host'],
+  },
+]
+
 /**
  * Validates a user session object. If the session claims to be admin but
  * the email doesn't match the real admin email, we forcibly clear it.
@@ -35,11 +63,17 @@ const loadAccounts = () => {
   try {
     const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY)
     const parsed = stored ? JSON.parse(stored) : []
-    if (!Array.isArray(parsed)) return []
-    // Strip any account that fraudulently has the admin role
-    return parsed.filter(acc => acc.role !== 'admin')
+    const userAccounts = Array.isArray(parsed) ? parsed.filter(acc => acc.role !== 'admin') : []
+
+    // Merge DEFAULT_ACCOUNTS — add them only if not already present
+    const merged = [...userAccounts]
+    for (const def of DEFAULT_ACCOUNTS) {
+      const exists = merged.some(a => normalizeEmail(a.email) === normalizeEmail(def.email))
+      if (!exists) merged.push(def)
+    }
+    return merged
   } catch {
-    return []
+    return [...DEFAULT_ACCOUNTS]
   }
 }
 
