@@ -79,7 +79,7 @@ function StrengthBar({ password }) {
 // ═══════════════════════════════════════════════════════
 // STEP 0: Basic Info
 // ═══════════════════════════════════════════════════════
-function StepBasicInfo({ data, patch, onNext, role }) {
+function StepBasicInfo({ data, patch, onNext, role, onRoleChange }) {
   const [errors, setErrors] = useState({})
 
   const validate = () => {
@@ -87,6 +87,7 @@ function StepBasicInfo({ data, patch, onNext, role }) {
     if (!data.name.trim()) e.name = 'Full name is required.'
     if (!data.email.includes('@')) e.email = 'Enter a valid email.'
     if (data.password.length < 6) e.password = 'At least 6 characters required.'
+    if (!data.phone.trim()) e.phone = 'Phone number is required.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -97,11 +98,55 @@ function StepBasicInfo({ data, patch, onNext, role }) {
         onChange={patch('name')} error={errors.name} />
       <AuthInput id="su-email" icon={FiMail} type="email" placeholder="Email address"
         value={data.email} onChange={patch('email')} error={errors.email} />
+      <AuthInput id="su-phone" icon={FiPhone} type="tel" placeholder="Phone number"
+        value={data.phone} onChange={patch('phone')} error={errors.phone} />
       <PasswordInput id="su-password" value={data.password} onChange={patch('password')} error={errors.password} />
       <StrengthBar password={data.password} />
-      <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center' }}>
-        Signing up as: <strong style={{ color: '#374151' }}>{role === 'vendor' ? 'Host' : 'Guest'}</strong>
-      </p>
+      
+      {/* Role Selector */}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', margin: '10px 0' }}>
+        <button
+          type="button"
+          onClick={() => onRoleChange && onRoleChange('user')}
+          style={{
+            flex: 1,
+            padding: '12px',
+            borderRadius: 12,
+            border: `2px solid ${role === 'user' ? '#093880' : '#e5e7eb'}`,
+            background: role === 'user' ? '#f0f7ff' : '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.2s'
+          }}
+        >
+          <FiUser size={20} color={role === 'user' ? '#093880' : '#6b7280'} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: role === 'user' ? '#093880' : '#374151' }}>Guest</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onRoleChange && onRoleChange('vendor')}
+          style={{
+            flex: 1,
+            padding: '12px',
+            borderRadius: 12,
+            border: `2px solid ${role === 'vendor' ? '#093880' : '#e5e7eb'}`,
+            background: role === 'vendor' ? '#f0f7ff' : '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.2s'
+          }}
+        >
+          <FiHome size={20} color={role === 'vendor' ? '#093880' : '#6b7280'} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: role === 'vendor' ? '#093880' : '#374151' }}>Host</span>
+        </button>
+      </div>
+
       <PrimaryBtn onClick={() => validate() && onNext()}>
         Continue <FiArrowRight size={15} />
       </PrimaryBtn>
@@ -112,38 +157,19 @@ function StepBasicInfo({ data, patch, onNext, role }) {
 // ═══════════════════════════════════════════════════════
 // STEP 1: Phone + OTP
 // ═══════════════════════════════════════════════════════
-function StepPhone({ data, patch, onNext, onBack }) {
-  const [otpSent, setOtpSent] = useState(false)
+function StepEmail({ data, patch, onNext, onBack, role }) {
   const [otp, setOtp] = useState('')
-  const [sending, setSending] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [resendCd, setResendCd] = useState(0)
   const [otpError, setOtpError] = useState('')
   const { showToast } = useToast()
-
-  const startCd = () => {
-    setResendCd(30)
-    const t = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(t); return 0 } return c - 1 }), 1000)
-  }
-
-  const sendOtp = async () => {
-    if (!data.phone || data.phone.replace(/\D/g, '').length < 7) {
-      showToast('Enter a valid phone number.', 'error'); return
-    }
-    setSending(true)
-    await new Promise(r => setTimeout(r, 900))
-    setSending(false)
-    setOtpSent(true)
-    startCd()
-    showToast('OTP sent! Use 123456 for demo.', 'info')
-  }
+  const { verifyEmail } = useAuth()
 
   const verifyOtp = async () => {
     if (otp.length < 6) { setOtpError('Enter the 6-digit OTP.'); return }
     setVerifying(true)
-    await new Promise(r => setTimeout(r, 800))
+    const result = await verifyEmail({ email: data.email, otp, signupToken: data.signupToken, role })
     setVerifying(false)
-    if (otp !== '123456') { setOtpError('Incorrect OTP. Use 123456 in demo.'); return }
+    if (!result.ok) { setOtpError(result.error || 'Incorrect OTP.'); return }
     setOtpError('')
     patch('phoneVerified')({ target: { value: true } })
     onNext()
@@ -152,34 +178,16 @@ function StepPhone({ data, patch, onNext, onBack }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <BackBtn onClick={onBack} />
-      {!otpSent ? (
-        <>
-          <AuthInput id="su-phone" icon={FiPhone} type="tel"
-            placeholder="Phone number (+977 98XXXXXXXX)" value={data.phone}
-            onChange={patch('phone')} />
-          <p style={{ fontSize: 12, color: '#6b7280' }}>
-            We'll send a 6-digit OTP to verify your number.
-          </p>
-          <PrimaryBtn onClick={sendOtp} loading={sending}>Send OTP</PrimaryBtn>
-        </>
-      ) : (
-        <>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-              <FiPhone size={22} style={{ color: '#093880' }} />
-            </div>
-            <p style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>OTP sent to {data.phone}</p>
-            <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Enter the 6-digit code below</p>
-          </div>
-          <OtpInput value={otp} onChange={setOtp} />
-          {otpError && <p style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{otpError}</p>}
-          <PrimaryBtn onClick={verifyOtp} loading={verifying}>Verify & Continue</PrimaryBtn>
-          <button type="button" onClick={resendCd > 0 ? undefined : sendOtp}
-            style={{ background: 'none', border: 'none', cursor: resendCd > 0 ? 'default' : 'pointer', fontSize: 13, color: resendCd > 0 ? '#9ca3af' : '#093880', fontWeight: 600, textAlign: 'center' }}>
-            {resendCd > 0 ? `Resend OTP in ${resendCd}s` : 'Resend OTP'}
-          </button>
-        </>
-      )}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+          <FiMail size={22} style={{ color: '#093880' }} />
+        </div>
+        <p style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>OTP sent to {data.email}</p>
+        <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Enter the 6-digit code below</p>
+      </div>
+      <OtpInput value={otp} onChange={setOtp} />
+      {otpError && <p style={{ fontSize: 12, color: '#dc2626', textAlign: 'center' }}>{otpError}</p>}
+      <PrimaryBtn onClick={verifyOtp} loading={verifying}>Verify & Continue</PrimaryBtn>
     </div>
   )
 }
@@ -329,9 +337,9 @@ function StepSuccess({ role, name }) {
           ))}
         </div>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-          onClick={() => navigate('/auth?mode=login')}
+          onClick={() => navigate(role === 'vendor' ? '/vendor' : '/home', { replace: true })}
           style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(9,56,128,0.28)', fontFamily: "'Poppins', sans-serif" }}>
-          Go to Login
+          {role === 'vendor' ? 'Go to Host Dashboard' : 'Start Exploring'}
         </motion.button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16 }}>
           <FiShield size={13} style={{ color: '#16a34a' }} />
@@ -345,7 +353,7 @@ function StepSuccess({ role, name }) {
 // ═══════════════════════════════════════════════════════
 // MAIN EXPORT
 // ═══════════════════════════════════════════════════════
-export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
+export default function SignupFlow({ role = 'user', onSwitchToLogin, onRoleChange }) {
   const isVendor = role === 'vendor'
   const TOTAL_STEPS = isVendor ? 4 : 3
   const { signup } = useAuth()
@@ -361,29 +369,38 @@ export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
     phone: '', phoneVerified: false,
     idFile: null, idVerified: false,
     propName: '', propLocation: '', propDesc: '', propDoc: null,
+    signupToken: null,
   })
 
   const patch = k => e => setData(d => ({ ...d, [k]: typeof e.target?.value !== 'undefined' ? e.target.value : e.target.value }))
 
   const go = (n) => { setDir(n > step ? 1 : -1); setStep(n) }
 
-  // After identity step → register, then continue
-  const handleIdentityNext = async () => {
+  // After basic info → register, then continue to OTP
+  const handleBasicInfoNext = async () => {
     setSubmitting(true)
     const result = await signup({
       name: data.name, email: data.email, password: data.password, role,
-      phone: data.phone, phoneVerified: data.phoneVerified,
-      idVerified: data.idVerified,
-      propName: data.propName, propLocation: data.propLocation, propDesc: data.propDesc,
+      phone: data.phone,
     })
     setSubmitting(false)
     if (!result.ok) { showToast(result.error, 'error'); return }
+    
+    if (result.signupToken) {
+      setData(d => ({ ...d, signupToken: result.signupToken }))
+    }
+    
+    go(1)
+  }
+
+  // After identity step → just proceed
+  const handleIdentityNext = async () => {
     if (isVendor) { go(3) } else { setDone(true) }
   }
 
   const HEADERS = [
     { title: 'Create your account', sub: 'Enter your basic information to get started.' },
-    { title: 'Verify your phone', sub: "We'll send an OTP to confirm your number." },
+    { title: 'Verify your email', sub: "We'll send an OTP to confirm your email." },
     { title: 'Identity verification', sub: 'Keeps our community safe and trusted.' },
     ...(isVendor ? [{ title: 'Property ownership', sub: 'Required to list and manage properties.' }] : []),
   ]
@@ -431,10 +448,10 @@ export default function SignupFlow({ role = 'user', onSwitchToLogin }) {
           <motion.div key={`step-${step}`} custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
             transition={{ duration: 0.25, ease: 'easeInOut' }}>
             {step === 0 && (
-              <StepBasicInfo data={data} patch={patch} onNext={() => go(1)} role={role} />
+              <StepBasicInfo data={data} patch={patch} onNext={handleBasicInfoNext} role={role} onRoleChange={onRoleChange} />
             )}
             {step === 1 && (
-              <StepPhone data={data} patch={patch} onNext={() => go(2)} onBack={() => go(0)} />
+              <StepEmail data={data} patch={patch} onNext={() => go(2)} onBack={() => go(0)} role={role} />
             )}
             {step === 2 && (
               <StepIdentity data={data} setData={setData} onNext={handleIdentityNext} onBack={() => go(1)} />

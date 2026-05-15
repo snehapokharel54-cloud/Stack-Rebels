@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FiMail, FiArrowLeft, FiCheckCircle, FiRefreshCw } from 'react-icons/fi'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 import { AuthInput } from './AuthInput'
 import AuthCard from './AuthCard'
 import AuthHeader from './AuthHeader'
@@ -16,16 +17,26 @@ export default function ForgotPassword({ onBack }) {
   const [loading, setLoading] = useState(false)
   const [resendCd, setResendCd] = useState(0)
   const { showToast } = useToast()
+  const { forgotPassword } = useAuth()
 
   const handleSend = async () => {
     if (!email.includes('@')) { setEmailError('Enter a valid email address.'); return }
     setEmailError('')
     setLoading(true)
-    await new Promise(r => setTimeout(r, 1000)) // mock API call
+    try {
+      const result = await forgotPassword({ email })
+      if (result.ok) {
+        showToast('Password reset email sent!', 'success')
+      } else {
+        // Still show success to prevent email enumeration (backend does same)
+        showToast(result.message || 'If an account exists, a reset link was sent.', 'info')
+      }
+    } catch {
+      showToast('If an account exists, a reset link was sent.', 'info')
+    }
     setLoading(false)
     setSent(true)
     setResendCd(60)
-    showToast('Password reset email sent!', 'success')
     const interval = setInterval(() => setResendCd(c => { if (c <= 1) { clearInterval(interval); return 0 } return c - 1 }), 1000)
   }
 

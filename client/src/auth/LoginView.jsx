@@ -1,10 +1,10 @@
 /**
- * auth/LoginView.jsx — Clean login with Google, email+password, remember me, forgot password
+ * auth/LoginView.jsx — Clean login with role selection, Google, email+password, remember me, forgot password
  */
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
-import { FiMail, FiArrowLeft, FiShield } from 'react-icons/fi'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { FiMail, FiArrowLeft, FiShield, FiUser, FiHome, FiSettings } from 'react-icons/fi'
 import { FcGoogle } from 'react-icons/fc'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -12,8 +12,18 @@ import { AuthInput, PasswordInput } from './AuthInput'
 import AuthCard from './AuthCard'
 import AuthHeader from './AuthHeader'
 
+const ROLES = [
+  { id: 'user', label: 'Guest', icon: FiUser, color: '#16a34a' },
+  { id: 'vendor', label: 'Host', icon: FiHome, color: '#2563eb' },
+  { id: 'admin', label: 'Admin', icon: FiSettings, color: '#dc2626' },
+]
+
 export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
+  const [searchParams] = useSearchParams()
+  const initialRole = searchParams.get('role') || 'user'
+
   const [form, setForm] = useState({ email: '', password: '', remember: false })
+  const [selectedRole, setSelectedRole] = useState(initialRole)
   const [errors, setErrors] = useState({})
   const { login, loading } = useAuth()
   const { showToast } = useToast()
@@ -38,7 +48,9 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
       return
     }
     showToast(`Welcome back, ${result.user.name?.split(' ')[0]}! 👋`, 'success')
-    navigate(result.user.role === 'vendor' ? '/vendor' : '/home', { replace: true })
+    if (result.user.role === 'admin') navigate('/admin', { replace: true })
+    else if (result.user.role === 'vendor') navigate('/vendor', { replace: true })
+    else navigate('/home', { replace: true })
   }
 
   return (
@@ -48,27 +60,33 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
       <div style={{ padding: '28px 36px 24px' }}>
         {/* Back to landing */}
         <button type="button" onClick={() => navigate('/')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 20 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, fontWeight: 600, padding: 0, marginBottom: 16 }}
           onMouseEnter={e => e.currentTarget.style.color = '#111827'}
           onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}>
           <FiArrowLeft size={14} /> Back to home
         </button>
 
-        {/* Google */}
-        <button type="button"
-          onClick={() => showToast('Google sign-in coming soon!', 'info')}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 4, transition: 'background 0.15s' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
-          onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-          <FcGoogle size={20} /> Continue with Google
-        </button>
 
-        {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '12px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>or continue with email</span>
-          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-        </div>
+
+        {/* Google (only for user/host) */}
+        {selectedRole !== 'admin' && (
+          <>
+            <button type="button"
+              onClick={() => showToast('Google sign-in coming soon!', 'info')}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '12px 16px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 4, transition: 'background 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+              <FcGoogle size={20} /> Continue with Google
+            </button>
+
+            {/* Divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '12px 0' }}>
+              <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>or continue with email</span>
+              <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+            </div>
+          </>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
@@ -83,10 +101,12 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
                   style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#093880' }} />
                 Remember me
               </label>
-              <button type="button" onClick={onForgotPassword}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#093880', fontSize: 13, fontWeight: 600, textDecoration: 'underline' }}>
-                Forgot password?
-              </button>
+              {selectedRole !== 'admin' && (
+                <button type="button" onClick={onForgotPassword}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#093880', fontSize: 13, fontWeight: 600, textDecoration: 'underline' }}>
+                  Forgot password?
+                </button>
+              )}
             </div>
 
             {errors.submit && (
@@ -98,7 +118,7 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
             <motion.button id="login-submit" type="submit" disabled={loading}
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(9,56,128,0.28)', fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loading ? 0.8 : 1 }}>
-              {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : 'Log In'}
+              {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : `Log In as ${ROLES.find(r => r.id === selectedRole)?.label}`}
             </motion.button>
           </div>
         </form>
@@ -113,13 +133,15 @@ export default function LoginView({ onSwitchToSignup, onForgotPassword }) {
       </div>
 
       <div style={{ padding: '0 36px 24px', textAlign: 'center' }}>
-        <p style={{ fontSize: 13, color: '#6b7280' }}>
-          Don't have an account?{' '}
-          <button type="button" onClick={onSwitchToSignup}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#093880', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}>
-            Sign up free
-          </button>
-        </p>
+        {selectedRole !== 'admin' && (
+          <p style={{ fontSize: 13, color: '#6b7280' }}>
+            Don't have an account?{' '}
+            <button type="button" onClick={onSwitchToSignup}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#093880', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}>
+              Sign up free
+            </button>
+          </p>
+        )}
         <p style={{ fontSize: 11, color: '#d1d5db', marginTop: 8 }}>
           By continuing you agree to our{' '}
           <span style={{ color: '#093880', cursor: 'pointer' }}>Terms</span> &{' '}
