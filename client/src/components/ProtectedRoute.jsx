@@ -9,8 +9,8 @@ const ADMIN_EMAIL = 'admin@grihastha.com'
 export default function ProtectedRoute({ children, requiredRole }) {
   const { user } = useAuth()
 
-  // Not logged in → go to auth
-  if (!user) return <Navigate to="/auth" replace />
+  // Not logged in → go to auth with requested role
+  if (!user) return <Navigate to={`/auth?mode=login&role=${requiredRole || 'user'}`} replace />
 
   // ── Prevent fraudulent admin access ─────────────────────────────────────────
   // If the session says role === 'admin' but the email isn't the real admin,
