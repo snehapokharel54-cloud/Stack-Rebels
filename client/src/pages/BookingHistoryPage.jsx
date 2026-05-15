@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   FiArrowLeft, FiCalendar, FiMapPin, FiUsers, FiX,
   FiStar, FiEye, FiCheck, FiClock, FiXCircle,
+  FiMessageSquare, FiAlertCircle
 } from 'react-icons/fi'
+import axios from 'axios'
+import ChatModal from '../components/ChatModal'
 import { FaStar } from 'react-icons/fa'
 import Navbar from '../components/Navbar'
 import { useAppData } from '../context/AppDataContext'
@@ -23,13 +26,16 @@ const TABS = [
 function StatusBadge({ status, checkOut }) {
   const now = new Date()
   const isPast = new Date(checkOut) < now
-  const s = status === 'cancelled' ? 'cancelled' : isPast ? 'completed' : 'confirmed'
+  let s = status?.toLowerCase() || 'pending'
+  if (isPast && s === 'confirmed') s = 'completed'
+
   const cfg = {
+    pending: { bg: '#fffbeb', color: '#d97706', border: '#fde68a', label: 'Pending', dot: '#f59e0b' },
     confirmed: { bg: '#ecfdf5', color: '#16a34a', border: '#86efac', label: 'Confirmed', dot: '#22c55e' },
     completed: { bg: '#f3f4f6', color: '#374151', border: '#e5e7eb', label: 'Completed', dot: '#6b7280' },
     cancelled: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', label: 'Cancelled', dot: '#ef4444' },
   }
-  const st = cfg[s]
+  const st = cfg[s] || cfg.pending
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: st.bg, color: st.color, border: `1px solid ${st.border}`, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot, display: 'inline-block' }} />
@@ -65,7 +71,7 @@ function EmptyState({ tab, navigate }) {
 }
 
 // ─── Booking Card ─────────────────────────────────────────────────────────────
-function BookingCard({ booking, now, onCancel, onReview, hasReviewed }) {
+function BookingCard({ booking, now, onCancel, onReview, hasReviewed, onMessage, onReport }) {
   const navigate = useNavigate()
   const isPast = new Date(booking.checkOut) < now
   const isUpcoming = !isPast && booking.status !== 'cancelled'
@@ -146,6 +152,24 @@ function BookingCard({ booking, now, onCancel, onReview, hasReviewed }) {
               </motion.button>
             )}
 
+            {/* Message Host — only for confirmed */}
+            {booking.status === 'confirmed' && (
+              <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                onClick={() => onMessage(booking)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 12, border: '1.5px solid #093880', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#093880' }}>
+                <FiMessageSquare size={13} /> Message
+              </motion.button>
+            )}
+
+            {/* Report Issue — for confirmed or completed */}
+            {(booking.status === 'confirmed' || booking.status === 'completed') && (
+              <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                onClick={() => onReport(booking)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 12, border: '1.5px solid #ef4444', background: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#ef4444' }}>
+                <FiAlertCircle size={13} /> Report
+              </motion.button>
+            )}
+
             {/* Write Review — only for completed, not cancelled, not already reviewed */}
             {isPast && booking.status !== 'cancelled' && !hasReviewed && (
               <motion.button whileHover={{ scale: 1.04, y: -1 }} whileTap={{ scale: 0.96 }}
@@ -177,7 +201,7 @@ function BookingCard({ booking, now, onCancel, onReview, hasReviewed }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function BookingHistoryPage() {
-  const { getUserBookings, cancelBooking, hasUserReviewedProperty } = useAppData()
+  const { getUserBookings, cancelBooking, hasUserReviewedProperty, fetchGuestBookings } = useAppData()
   const { user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -185,14 +209,64 @@ export default function BookingHistoryPage() {
   const [cancelling, setCancelling] = useState(null)
   const [reviewing, setReviewing] = useState(null)   // { propertyId, propertyTitle }
 
-  const allBookings = getUserBookings(user?.email)
+  useEffect(() => {
+    if (user?.id) fetchGuestBookings(user.id)
+  }, [user?.id, fetchGuestBookings])
+
+  console.log('[BookingHistoryPage] user:', user)
+  const allBookings = getUserBookings(user?.id)
   const now = new Date()
 
-  const upcoming  = allBookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= now)
-  const completed = allBookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) < now)
-  const cancelled = allBookings.filter(b => b.status === 'cancelled')
+  // Sort bookings by creation date (newest first)
+  const sortedBookings = [...allBookings].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+
+  const upcoming  = sortedBookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= now)
+  const completed = sortedBookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) < now)
+  const cancelled = sortedBookings.filter(b => b.status === 'cancelled')
+
+  console.log('[BookingHistoryPage] upcoming length:', upcoming.length)
+  if (allBookings.length > 0) {
+    console.log('[BookingHistoryPage] First booking checkOut:', allBookings[0].checkOut, 'is >= now?', new Date(allBookings[0].checkOut) >= now)
+  }
 
   const countMap    = { upcoming: upcoming.length, completed: completed.length, cancelled: cancelled.length }
+
+  const handleMessageHost = async (booking) => {
+    try {
+      const token = localStorage.getItem('grihastha_token')
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/v1/conversations`, 
+        { hostId: booking.hostId, listingId: booking.propertyId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (data?.success) {
+        showToast("Opening chat with host...", "success")
+        navigate(`/messages?id=${data.id}`)
+      }
+    } catch (err) {
+      console.error('Failed to start conversation:', err)
+      showToast('Failed to start conversation.', 'error')
+    }
+  }
+
+  const handleReportIssue = async (booking) => {
+    const reason = window.prompt("Please enter the reason for reporting this issue:")
+    if (!reason) return
+
+    try {
+      const token = localStorage.getItem('grihastha_token')
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/v1/disputes`, 
+        { booking_id: booking.id, reason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (data?.success) {
+        showToast("Dispute raised successfully! Opening chat...", "success")
+        navigate(`/messages?id=${data.data.conversation_id}`)
+      }
+    } catch (err) {
+      console.error('Failed to raise dispute:', err)
+      showToast(err.response?.data?.message || 'Failed to raise dispute.', 'error')
+    }
+  }
   const displayedMap = { upcoming, completed, cancelled }
   const displayed   = displayedMap[activeTab] || []
 
@@ -277,7 +351,9 @@ export default function BookingHistoryPage() {
                       now={now}
                       onCancel={(b) => setCancelling(b)}
                       onReview={(b) => setReviewing({ propertyId: b.propertyId, propertyTitle: b.propertyTitle })}
-                      hasReviewed={hasUserReviewedProperty(booking.propertyId, user?.email)}
+                      hasReviewed={hasUserReviewedProperty(booking.propertyId, user?.id)}
+                      onMessage={(b) => handleMessageHost(b)}
+                      onReport={(b) => handleReportIssue(b)}
                     />
                   </motion.div>
                 ))}
