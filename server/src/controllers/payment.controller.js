@@ -14,6 +14,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
  * Body: { booking_id }
  */
 export const initiatePayment = async (req, res) => {
+  console.log("🚀 [DEBUG] EXECUTING STRIPE INITIATE HANDLER", req.body);
   try {
     const userId = req.user.sub;
     const { booking_id } = req.body;
@@ -27,9 +28,11 @@ export const initiatePayment = async (req, res) => {
     // 1. Fetch the booking
     const bookingResult = await query(
       `SELECT b.id, b.guest_id, b.listing_id, b.status, b.payment_status,
-              b.price_breakdown, l.title as listing_title
+              b.price_breakdown, l.title as listing_title,
+              u.email as guest_email
        FROM bookings b
        JOIN listings l ON b.listing_id = l.id
+       JOIN users u ON b.guest_id = u.id
        WHERE b.id = $1`,
       [booking_id],
     );
@@ -68,6 +71,7 @@ export const initiatePayment = async (req, res) => {
     // 3. Create Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      customer_email: booking.guest_email,
       line_items: [
         {
           price_data: {
@@ -82,8 +86,8 @@ export const initiatePayment = async (req, res) => {
         },
       ],
       mode: "payment",
-      success_url: `${process.env.CLIENT_URL || "http://localhost:5173"}/payment-success?gateway=stripe&session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
-      cancel_url: `${process.env.CLIENT_URL || "http://localhost:5173"}/property/${booking.listing_id}?payment_cancelled=true`,
+      success_url: `${(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "")}/payment-success?gateway=stripe&session_id={CHECKOUT_SESSION_ID}&booking_id=${booking.id}`,
+      cancel_url: `${(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "")}/property/${booking.listing_id}?payment_cancelled=true`,
       metadata: {
         booking_id: booking.id,
         user_id: userId,
@@ -122,8 +126,8 @@ export const initiatePayment = async (req, res) => {
  * Body: { booking_id, payment_intent_id, session_id }
  */
 export const verifyPayment = async (req, res) => {
+  console.log("🚀 [DEBUG] EXECUTING STRIPE VERIFY HANDLER", req.body);
   try {
-    const userId = req.user.sub;
     const { booking_id, payment_intent_id, session_id } = req.body;
 
     if (!booking_id || (!payment_intent_id && !session_id)) {
@@ -166,8 +170,8 @@ export const verifyPayment = async (req, res) => {
     // 3. Update booking status
     await query(
       `UPDATE bookings SET payment_status = 'paid', status = 'CONFIRMED', updated_at = NOW()
-       WHERE id = $1 AND guest_id = $2`,
-      [booking_id, userId],
+       WHERE id = $1`,
+      [booking_id],
     );
 
     // 4. Update payment record (handle both PI and Session lookup)
