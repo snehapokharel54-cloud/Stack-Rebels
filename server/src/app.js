@@ -28,6 +28,7 @@ import hostDashboardRoutes from "./routes/host.dashboard.routes.js";
 import hostBookingRoutes from "./routes/host.booking.routes.js";
 import hostReviewRoutes from "./routes/host.review.routes.js";
 import adminDashboardRoutes from "./routes/admin.dashboard.routes.js";
+import disputeRoutes from "./routes/dispute.routes.js";
 import mediaRoutes from "./routes/media.routes.js";
 import geocodeRoutes from "./routes/geocode.routes.js";
 
@@ -166,6 +167,7 @@ export async function initializeApp() {
 
     app.use("/v1/media", mediaRoutes);
     app.use("/v1/geocode", geocodeRoutes);
+    app.use("/v1/disputes", disputeRoutes);
 
     // ── 404 and error handlers (MUST be last) ──────────────────────
     app.use((req, res) => {
