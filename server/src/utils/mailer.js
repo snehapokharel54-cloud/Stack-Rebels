@@ -62,11 +62,16 @@ export const sendVerificationEmail = async (email, verificationToken) => {
           <body style="font-family: Arial, sans-serif;">
             <h2>Welcome to Grihastha!</h2>
             <p>Please verify your email address to activate your account.</p>
+            <p>Your verification code is:</p>
+            <div style="background: #f4f4f4; padding: 15px; font-size: 24px; font-weight: bold; text-align: center; letter-spacing: 5px; margin: 10px 0;">
+              ${verificationToken}
+            </div>
+            <p>Or click the link below to verify directly:</p>
             <a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
               Verify Email
             </a>
-            <p>Or copy this link: ${verificationUrl}</p>
-            <p>This link expires in 24 hours.</p>
+            <p style="margin-top: 20px;">Or copy this link: ${verificationUrl}</p>
+            <p>This code expires in 15 minutes.</p>
           </body>
         </html>
       `,
@@ -91,7 +96,7 @@ export const sendResetEmail = async (email, resetToken) => {
     return;
   }
   try {
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL.replace(/\/$/, '')}/auth?mode=reset&token=${resetToken}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
@@ -117,6 +122,104 @@ export const sendResetEmail = async (email, resetToken) => {
     throw error;
   }
 };
+/**
+ * Send welcome email to newly registered users.
+ * @param {string} email - Recipient email address
+ * @param {string} userName - User's full name
+ * @returns {Promise<void>}
+ */
+export const sendUserWelcomeEmail = async (email, userName) => {
+  if (!transporter) {
+    console.warn(
+      "[WARN] Email transporter not configured, skipping welcome email",
+    );
+    return;
+  }
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: "Welcome to Grihastha!",
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 0;
+              }
+              .container {
+                max-width: 600px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+              }
+              .header {
+                background: linear-gradient(135deg, #093880 0%, #1a56c4 100%);
+                color: white;
+                padding: 40px 20px;
+                text-align: center;
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 32px;
+                font-weight: 600;
+              }
+              .content {
+                padding: 40px 30px;
+              }
+              .greeting {
+                font-size: 18px;
+                color: #333;
+                margin-bottom: 20px;
+              }
+              .cta-button {
+                display: inline-block;
+                background-color: #093880;
+                color: white;
+                padding: 14px 35px;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: 600;
+                margin: 20px 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🏠 Welcome to Grihastha</h1>
+              </div>
+              <div class="content">
+                <div class="greeting">
+                  Hi <strong>${userName}</strong>,
+                </div>
+                <p>We're thrilled to have you join the Grihastha community! Your account has been successfully created and verified.</p>
+                <p>You can now start exploring properties and booking your next stay!</p>
+                <center>
+                  <a href="${process.env.CLIENT_URL}" class="cta-button">Start Exploring</a>
+                </center>
+                <p>If you have any questions, feel free to reach out to our support team.</p>
+                <p>Happy travels!<br><strong>The Grihastha Team</strong></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+  } catch (error) {
+    console.error("Error sending user welcome email:", error);
+    throw error;
+  }
+};
+
 
 /**
  * Send welcome email to newly registered hosts.
@@ -612,5 +715,52 @@ export const sendGuestCancellationEmailToGuest = async (email, data) => {
     });
   } catch (error) {
     console.error("Error sending cancellation confirmation to guest:", error);
+  }
+};
+
+export const sendKycApprovalEmail = async (email, hostName) => {
+  if (!transporter) {
+    console.warn("[WARN] Email transporter not configured, skipping KYC approval email");
+    return;
+  }
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: "KYC Verification Approved - Grihastha",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2>Congratulations ${hostName}!</h2>
+          <p>Your KYC verification has been approved. You are now a verified host on Grihastha.</p>
+          <p>You can now start listing your properties and accepting bookings.</p>
+        </div>
+      `
+    });
+  } catch (error) {
+    console.error("Error sending KYC approval email:", error);
+  }
+};
+
+export const sendKycRejectionEmail = async (email, hostName, reason) => {
+  if (!transporter) {
+    console.warn("[WARN] Email transporter not configured, skipping KYC rejection email");
+    return;
+  }
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: "KYC Verification Rejected - Grihastha",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2>Hello ${hostName},</h2>
+          <p>Unfortunately, your KYC verification was rejected.</p>
+          <p><strong>Reason for rejection:</strong> ${reason || "No reason provided"}</p>
+          <p>Please log in to your dashboard and resubmit the correct documents.</p>
+        </div>
+      `
+    });
+  } catch (error) {
+    console.error("Error sending KYC rejection email:", error);
   }
 };
