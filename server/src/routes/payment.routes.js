@@ -23,10 +23,10 @@ router.post(
 
 // Authenticated payment endpoints
 router.post("/create-intent", verifyUser, initiatePayment);
-router.post("/verify", verifyUser, verifyPayment);
+router.post("/verify", verifyPayment);
 router.get("/history", verifyUser, getPaymentHistory);
 
 router.post("/khalti/create-intent", verifyUser, initiateKhaltiPayment);
-router.post("/khalti/verify", verifyUser, verifyKhaltiPayment);
+router.post("/khalti/verify", verifyKhaltiPayment);
 
 export default router;

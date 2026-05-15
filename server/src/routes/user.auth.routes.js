@@ -3,14 +3,14 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { query } from "../config/db.js";
-import { rateLimiter } from "../middlewares/rateLimiter.js";
+import { rateLimiter, otpRateLimiter } from "../middlewares/rateLimiter.js";
 import {
   validateUserSignup,
   validateLogin,
   validateForgotPassword,
   validateResetPassword,
 } from "../middlewares/validators.js";
-import { sendResetEmail, sendVerificationEmail } from "../utils/mailer.js";
+import { sendResetEmail, sendVerificationEmail, sendUserWelcomeEmail } from "../utils/mailer.js";
 
 const router = Router();
 
@@ -32,50 +32,29 @@ router.post("/signup", validateUserSignup, async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 12);
 
-    // Insert user
-    const result = await query(
-      `INSERT INTO users (email, full_name, password_hash, phone, is_host)
-       VALUES ($1, $2, $3, $4, FALSE)
-       RETURNING id, email, full_name, avatar_url, phone, is_host, is_verified, created_at`,
-      [email, full_name, password_hash, phone || null],
-    );
-
-    const user = result.rows[0];
-
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-    // Save to DB
-    await query(
-      `INSERT INTO email_verifications (user_id, otp_hash, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE
-       SET otp_hash = $2, expires_at = $3, created_at = NOW()`,
-      [user.id, otpHash, expiresAt],
+    // Sign a token with user data and OTP hash
+    const signupToken = jwt.sign(
+      { full_name, email, password_hash, phone, otp_hash: otpHash, expires_at: expiresAt },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
     );
 
     // Send the verification email
     try {
-      await sendVerificationEmail(user.email, otp);
+      await sendVerificationEmail(email, otp);
     } catch (err) {
-      console.warn(
-        "[DEV] Verification email send failed, but OTP was saved to DB.",
-      );
+      console.warn("[DEV] Verification email send failed.");
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      { sub: user.id, role: "user", email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message: "User registered successfully.",
-      data: { user, token },
+      message: "OTP sent to email.",
+      data: { signupToken },
     });
   } catch (error) {
     console.error("User signup error:", error.message);
@@ -86,7 +65,68 @@ router.post("/signup", validateUserSignup, async (req, res) => {
     });
   }
 });
+router.post("/signup-complete", otpRateLimiter, async (req, res) => {
+  try {
+    const { signupToken, otp } = req.body;
 
+    if (!signupToken || !otp) {
+      return res.status(400).json({ success: false, message: "Token and OTP are required." });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(signupToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({ success: false, message: "Invalid or expired session. Please try again." });
+    }
+
+    const { full_name, email, password_hash, phone, otp_hash, expires_at } = decoded;
+
+    if (new Date() > new Date(expires_at)) {
+      return res.status(400).json({ success: false, message: "OTP expired." });
+    }
+
+    const inputOtpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    if (inputOtpHash !== otp_hash) {
+      return res.status(400).json({ success: false, message: "Invalid OTP." });
+    }
+
+    // Insert user
+    const result = await query(
+      `INSERT INTO users (email, full_name, password_hash, phone, is_host, is_verified)
+       VALUES ($1, $2, $3, $4, FALSE, TRUE)
+       RETURNING id, email, full_name, avatar_url, phone, is_host, is_verified, created_at`,
+      [email, full_name, password_hash, phone || null],
+    );
+
+    const user = result.rows[0];
+
+    // Generate JWT
+    const token = jwt.sign(
+      { sub: user.id, role: "user", email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+    // Send welcome email
+    try {
+      await sendUserWelcomeEmail(user.email, user.full_name);
+    } catch (err) {
+      console.warn("[DEV] Welcome email send failed.");
+    }
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully.",
+      data: { user, token },
+    });
+  } catch (error) {
+    console.error("Signup complete error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      errors: [],
+    });
+  }
+});
 // ─── POST /verify-email ─────────────────────────────────────────────
 router.post("/verify-email", rateLimiter, async (req, res) => {
   try {
@@ -190,7 +230,7 @@ router.post("/login", rateLimiter, validateLogin, async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { sub: user.id, role: "user", email: user.email },
+      { sub: user.id, role: user.is_host ? "host" : "user", email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: "7d" },
     );
@@ -258,7 +298,7 @@ router.post(
           `\n\n[DEV] PASSWORD RESET TOKEN FOR ${user.email}:\n===============\n${rawToken}\n===============\n`,
         );
         try {
-          await sendResetEmail(user.email, resetUrl);
+          await sendResetEmail(user.email, rawToken);
         } catch (err) {
           console.warn(
             "[DEV] Email send failed, but token was saved to database.",

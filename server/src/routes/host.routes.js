@@ -81,7 +81,7 @@ router.post("/listings/:id/decline-booking", declineBooking);
  * Submit KYC documents
  */
 router.post(
-  "/property-verification/:listingId",
+  "/property-verification/:listingId?",
   upload.any(),
   submitPropertyVerification,
 );
@@ -90,6 +90,6 @@ router.post(
  * GET /v1/host/property-verification/:listingId
  * Get KYC status
  */
-router.get("/property-verification/:listingId", getPropertyVerificationStatus);
+router.get("/property-verification/:listingId?", getPropertyVerificationStatus);
 
 export default router;

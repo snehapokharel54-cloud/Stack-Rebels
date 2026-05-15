@@ -54,59 +54,28 @@ router.post(
         }
       }
 
-      // Insert host (is_host = true)
-      const result = await query(
-        `INSERT INTO users (email, full_name, password_hash, phone, is_host, verification_document)
-       VALUES ($1, $2, $3, $4, TRUE, $5)
-       RETURNING id, email, full_name, avatar_url, phone, is_host, is_superhost, is_verified, verification_document, created_at`,
-        [email, full_name, password_hash, phone, docUrl],
-      );
-
-      const host = result.rows[0];
-
       // Generate 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
-
-      // Save to DB
-      await query(
-        `INSERT INTO email_verifications (user_id, otp_hash, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE
-       SET otp_hash = $2, expires_at = $3, created_at = NOW()`,
-        [host.id, otpHash, expiresAt],
-      );
 
       // Send the verification email
       try {
-        await sendVerificationEmail(host.email, otp);
+        await sendVerificationEmail(email, otp);
       } catch (err) {
-        console.warn(
-          "[DEV] Verification email send failed, but OTP was saved to DB.",
-        );
+        console.warn("[DEV] Verification email send failed.");
       }
 
-      // Send the welcome email
-      try {
-        await sendHostWelcomeEmail(host.email, host.full_name);
-      } catch (err) {
-        console.warn(
-          "[DEV] Welcome email send failed, but host was registered successfully.",
-        );
-      }
-
-      // Generate JWT
-      const token = jwt.sign(
-        { sub: host.id, role: "host", email: host.email },
+      // Generate stateless signup token
+      const signupToken = jwt.sign(
+        { email, full_name, password_hash, phone, docUrl, otp_hash: otpHash },
         process.env.JWT_SECRET,
-        { expiresIn: "7d" },
+        { expiresIn: "15m" },
       );
 
-      return res.status(201).json({
+      return res.status(200).json({
         success: true,
-        message: "Host registered successfully.",
-        data: { user: host, token },
+        message: "OTP sent to email.",
+        data: { signupToken },
       });
     } catch (error) {
       console.error("Host signup error:", error.message);
@@ -118,6 +87,67 @@ router.post(
     }
   },
 );
+router.post("/signup-complete", rateLimiter, async (req, res) => {
+  try {
+    const { signupToken, otp } = req.body;
+
+    if (!signupToken || !otp) {
+      return res.status(400).json({ success: false, message: "Token and OTP are required." });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(signupToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({ success: false, message: "Invalid or expired token." });
+    }
+
+    const { email, full_name, password_hash, phone, docUrl, otp_hash } = decoded;
+
+    const inputOtpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    if (inputOtpHash !== otp_hash) {
+      return res.status(400).json({ success: false, message: "Invalid OTP." });
+    }
+
+    // Insert host
+    const result = await query(
+      `INSERT INTO users (email, full_name, password_hash, phone, is_host, verification_document)
+       VALUES ($1, $2, $3, $4, TRUE, $5)
+       RETURNING id, email, full_name, avatar_url, phone, is_host, is_superhost, is_verified, verification_document, created_at`,
+      [email, full_name, password_hash, phone || null, docUrl || null],
+    );
+
+    const host = result.rows[0];
+
+    // Send welcome email
+    try {
+      await sendHostWelcomeEmail(host.email, host.full_name);
+    } catch (err) {
+      console.warn("[DEV] Welcome email send failed.");
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { sub: host.id, role: "host", email: host.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Host registered successfully.",
+      data: { user: host, token },
+    });
+  } catch (error) {
+    console.error("Host signup complete error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      errors: [],
+    });
+  }
+});
+
 
 // ─── POST /verify-email ─────────────────────────────────────────────
 router.post("/verify-email", rateLimiter, async (req, res) => {

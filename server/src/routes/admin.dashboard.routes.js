@@ -16,6 +16,7 @@ import {
   rejectKyc,
   getKycDocuments,
   getListingsAdmin,
+  approveListingAdmin,
   suspendListing,
   deleteListingAdmin,
   getReviewsAdmin,
@@ -36,10 +37,10 @@ import {
   triggerPayout,
   getAdminPayouts,
 } from "../controllers/admin.dashboard.controller.js";
-import { verifyUser } from "../middlewares/authenticate.js";
+import { verifyAdmin } from "../middlewares/authenticate.js";
 
 const router = Router();
-router.use(verifyUser); // Admin auth check would go here
+router.use(verifyAdmin);
 
 // Dashboard/Analytics
 router.get("/dashboard", getGeneralDashboard);
@@ -58,12 +59,13 @@ router.patch("/hosts/:id/suspend", suspendHost);
 
 // KYC
 router.get("/kyc/pending", getPendingKyc);
-router.patch("/kyc/:userId/approve", approveKyc);
-router.patch("/kyc/:userId/reject", rejectKyc);
+router.patch("/kyc/:id/approve", approveKyc);
+router.patch("/kyc/:id/reject", rejectKyc);
 router.get("/kyc/:userId/documents", getKycDocuments);
 
 // Moderation
 router.get("/listings", getListingsAdmin);
+router.post("/listings/:id/approve", approveListingAdmin);
 router.patch("/listings/:id/suspend", suspendListing);
 router.delete("/listings/:id", deleteListingAdmin);
 router.get("/reviews", getReviewsAdmin);

@@ -5,10 +5,10 @@ import {
   getMessages,
   sendMessage,
 } from "../controllers/conversation.controller.js";
-import { verifyUser } from "../middlewares/authenticate.js";
+import { authenticate } from "../middlewares/authenticate.js";
 
 const router = Router();
-router.use(verifyUser);
+router.use(authenticate);
 router.post("/", startConversation);
 router.get("/", getConversations);
 router.get("/:id/messages", getMessages);
