@@ -121,7 +121,7 @@ export const getGuestBookings = async (req, res) => {
     const guestId = req.user.sub;
     const { status, limit = 20, offset = 0 } = req.query;
 
-    let sql = `SELECT b.id as booking_id, l.title as listing_title, l.photos->0->>'url' as listing_photo,
+    let sql = `SELECT b.id as booking_id, b.guest_id, b.listing_id, b.host_id, l.title as listing_title, l.photos->0->>'url' as listing_photo,
                u.full_name as host_name, b.check_in, b.check_out, b.nights, 
                b.total_price, b.status, b.payment_status,
                p.gateway, p.khalti_pidx
@@ -298,7 +298,7 @@ export const getIncomingRequests = async (req, res) => {
     const { limit = 50, offset = 0 } = req.query;
 
     const result = await query(
-      `SELECT b.id as booking_id, b.id, l.title as listing_title, 
+      `SELECT b.id as booking_id, b.id, b.host_id, l.title as listing_title, 
               l.photos->0->>'url' as listing_photo,
               u.full_name as guest_name, u.avatar_url as guest_avatar,
               b.check_in, b.check_out, b.nights, b.num_guests,
