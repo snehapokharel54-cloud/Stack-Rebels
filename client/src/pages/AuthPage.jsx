@@ -5,6 +5,7 @@
  *   'login'   → LoginView
  *   'signup'  → SignupFlow (user or vendor)
  *   'forgot'  → ForgotPassword
+ *   'reset'   → ResetPassword
  */
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -14,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import LoginView from '../auth/LoginView'
 import SignupFlow from '../auth/SignupFlow'
 import ForgotPassword from '../auth/ForgotPassword'
+import ResetPassword from '../auth/ResetPassword'
 
 export default function AuthPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -24,6 +26,7 @@ export default function AuthPage() {
   const getView = () => {
     if (searchParams.get('mode') === 'signup') return 'signup'
     if (searchParams.get('mode') === 'forgot') return 'forgot'
+    if (searchParams.get('mode') === 'reset') return 'reset'
     return 'login'
   }
   const [view, setView] = useState(getView)
@@ -34,7 +37,9 @@ export default function AuthPage() {
   // If already logged in, redirect
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate(user.role === 'vendor' ? '/vendor' : '/home', { replace: true })
+      if (user.role === 'admin') navigate('/admin', { replace: true })
+      else if (user.role === 'vendor') navigate('/vendor', { replace: true })
+      else navigate('/home', { replace: true })
     }
   }, [isAuthenticated, user, navigate])
 
@@ -62,12 +67,20 @@ export default function AuthPage() {
           <SignupFlow
             role={role}
             onSwitchToLogin={() => switchView('login')}
+            onRoleChange={(newRole) => switchView('signup', { role: newRole })}
           />
         </motion.div>
       )}
       {view === 'forgot' && (
         <motion.div key="forgot" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
           <ForgotPassword
+            onBack={() => switchView('login')}
+          />
+        </motion.div>
+      )}
+      {view === 'reset' && (
+        <motion.div key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+          <ResetPassword
             onBack={() => switchView('login')}
           />
         </motion.div>
