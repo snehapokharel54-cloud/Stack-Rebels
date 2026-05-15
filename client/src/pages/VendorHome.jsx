@@ -4,14 +4,23 @@ import { useNavigate } from 'react-router-dom'
 import {
   FiHome, FiPlus, FiList, FiCalendar, FiUser, FiLogOut,
   FiMenu, FiX, FiEdit2, FiTrash2, FiEye, FiCheck, FiClock, FiTrendingUp,
-  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell, FiMessageSquare, FiShield,
+  FiDollarSign, FiAlertCircle, FiUpload, FiStar, FiFileText, FiBell, FiMessageSquare, FiShield, FiMessageCircle, FiSend, FiServer
 } from 'react-icons/fi'
 import { FaStar } from 'react-icons/fa'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useToast } from '../context/ToastContext'
+import { hostAPI, mediaAPI, userAPI } from '../services/api'
 import KYCPage from './KYCPage'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import axios from 'axios'
+import CryptoJS from 'crypto-js'
+import { io } from 'socket.io-client'
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+const SECRET_KEY = 'grihastha_default_secret_key'
 
 // ──────────────────────────────────────────────────
 // Sidebar config
@@ -20,14 +29,35 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: FiHome },
   { id: 'listings', label: 'My Listings', icon: FiList },
   { id: 'bookings', label: 'Bookings', icon: FiCalendar },
+  { id: 'messages', label: 'Messages', icon: FiMessageCircle },
   { id: 'reviews', label: 'Reviews', icon: FiMessageSquare },
   { id: 'kyc', label: 'KYC / Verify', icon: FiShield },
 ]
 
+import { 
+  Wifi, Wind, Car, Refrigerator, WashingMachine, Tv, 
+  Waves, Dumbbell, TreePine, Sun, Flame, Zap 
+} from 'lucide-react'
+
 const ALL_AMENITIES = [
   'WiFi', 'Air Conditioning', 'Parking', 'Kitchen', 'Washing Machine',
-  'TV', 'Pool', 'Gym', 'Garden', 'Balcony', 'Hot Water', 'Power Backup',
+  'TV', 'Pool', 'Gym', 'Garden', 'Balcony', 'Hot Water', 'Power Backup'
 ]
+
+const AMENITY_ICONS = {
+  'WiFi': Wifi,
+  'Air Conditioning': Wind,
+  'Parking': Car,
+  'Kitchen': Refrigerator,
+  'Washing Machine': WashingMachine,
+  'TV': Tv,
+  'Pool': Waves,
+  'Gym': Dumbbell,
+  'Garden': TreePine,
+  'Balcony': Sun,
+  'Hot Water': Flame,
+  'Power Backup': Zap,
+}
 const CATEGORIES = [
   { label: 'House', id: 'house' },
   { label: 'Room', id: 'room' },
@@ -158,7 +188,7 @@ function DashboardOverview({ user, analytics, setSection, isKycVerified, kycStat
       <div className="vendor-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 18, marginBottom: 28 }}>
         <StatCard icon={FiHome} label="Total Listings" value={totalListings} sub="Active properties" color="#093880" bg="#eff6ff" gradient="linear-gradient(135deg,#093880,#1a56c4)" />
         <StatCard icon={FiCalendar} label="Total Bookings" value={totalBookings} sub="Confirmed stays" color="#10b981" bg="#ecfdf5" gradient="linear-gradient(135deg,#059669,#10b981)" />
-        <StatCard icon={FiDollarSign} label="Total Earnings" value={`NPR ${totalEarnings.toLocaleString()}`} sub="All-time revenue" color="#f59e0b" bg="#fffbeb" gradient="linear-gradient(135deg,#d97706,#f59e0b)" />
+        <StatCard icon={FiDollarSign} label="Total Earnings" value={`NPR ${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="All-time revenue" color="#f59e0b" bg="#fffbeb" gradient="linear-gradient(135deg,#d97706,#f59e0b)" />
         <StatCard icon={FiTrendingUp} label="Occupancy Rate" value={`${occupancyRate}%`} sub="Booked vs available" color="#6366f1" bg="#eef2ff" gradient="linear-gradient(135deg,#4f46e5,#6366f1)" />
       </div>
 
@@ -217,16 +247,25 @@ function DashboardOverview({ user, analytics, setSection, isKycVerified, kycStat
   )
 }
 
-// ──────────────────────────────────────────────────
+function ChangeView({ center, zoom }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
 // SECTION: Add Property (with legal doc + approval)
 // ──────────────────────────────────────────────────
 function AddPropertyForm({ user, onSuccess }) {
   const { addHostProperty } = useAppData()
   const { showToast } = useToast()
+  const [searchingLocation, setSearchingLocation] = useState(false)
   const [form, setForm] = useState({
     title: '', description: '', price: '', category: 'apartment',
     location: '', amenities: [], maxGuests: 2, bedrooms: 1, bathrooms: 1,
-    image: SAMPLE_IMAGES[0], images: [SAMPLE_IMAGES[0]],
+    image: '', images: [],
+    latitude: '', longitude: '',
+    city: '', district: '', zipCode: '',
   })
   const [legalDoc, setLegalDoc] = useState(null)
   const [msg, setMsg] = useState({ type: '', text: '' })
@@ -242,10 +281,76 @@ function AddPropertyForm({ user, onSuccess }) {
     if (file) setLegalDoc(file)
   }
 
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+
+    for (const file of files) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const { data } = await mediaAPI.upload(formData)
+        setForm(f => ({
+          ...f,
+          images: [...(f.images || []), data.data.url],
+          image: f.image || data.data.url // Use first image as main image
+        }))
+      } catch (err) {
+        console.error('Failed to upload image:', err)
+        showToast('Failed to upload image.', 'error')
+      }
+    }
+  }
+
+  const removeImage = (idx) => {
+    setForm(f => {
+      const newImages = f.images.filter((_, i) => i !== idx)
+      return {
+        ...f,
+        images: newImages,
+        image: newImages[0] || '' // Fallback to first image or empty
+      }
+    })
+  }
+
+  const handleLocationBlur = async () => {
+    if (!form.location) return
+    setSearchingLocation(true)
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(form.location)}`)
+      const data = await response.json()
+      if (data && data.length > 0) {
+        const result = data[0]
+        const { lat, lon } = result
+        const address = result.address || {}
+        
+        setForm(f => ({ 
+          ...f, 
+          latitude: lat, 
+          longitude: lon,
+          city: address.city || address.town || address.village || '',
+          district: address.county || '',
+          zipCode: address.postcode || ''
+        }))
+        showToast(`Coordinates found: ${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)}`, 'success')
+      } else {
+        showToast('Location not found on map.', 'warning')
+      }
+    } catch (err) {
+      console.error('Failed to fetch coordinates:', err)
+    } finally {
+      setSearchingLocation(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.title || !form.price || !form.location) {
       setMsg({ type: 'error', text: 'Please fill Title, Price and Location.' })
+      return
+    }
+    if (!form.images || form.images.length < 5) {
+      setMsg({ type: 'error', text: 'Please upload at least 5 property images.' })
       return
     }
     if (!legalDoc) {
@@ -253,16 +358,28 @@ function AddPropertyForm({ user, onSuccess }) {
       return
     }
     setSubmitting(true)
-    await new Promise(r => setTimeout(r, 700))
-    const result = addHostProperty(
-      { ...form, price: +form.price, maxGuests: +form.maxGuests, bedrooms: +form.bedrooms, bathrooms: +form.bathrooms, legalDocName: legalDoc.name },
+    let legalDocUrl = ''
+    try {
+      const formData = new FormData()
+      formData.append('file', legalDoc)
+      const { data } = await mediaAPI.upload(formData)
+      legalDocUrl = data.data.url
+    } catch (err) {
+      console.error('Failed to upload legal doc:', err)
+      setMsg({ type: 'error', text: 'Failed to upload legal document.' })
+      setSubmitting(false)
+      return
+    }
+
+    const result = await addHostProperty(
+      { ...form, price: +form.price, maxGuests: +form.maxGuests, bedrooms: +form.bedrooms, bathrooms: +form.bathrooms, legalDocName: legalDoc.name, legalDocUrl: legalDocUrl },
       user.email, user.name
     )
     setSubmitting(false)
     if (result.ok) {
       setMsg({ type: 'success', text: 'Property submitted for admin approval! You will be notified once reviewed.' })
       showToast('Property submitted! Pending admin approval ⏳', 'info')
-      setForm({ title: '', description: '', price: '', category: 'apartment', location: '', amenities: [], maxGuests: 2, bedrooms: 1, bathrooms: 1, image: SAMPLE_IMAGES[0], images: [SAMPLE_IMAGES[0]] })
+      setForm({ title: '', description: '', price: '', category: 'apartment', location: '', amenities: [], maxGuests: 2, bedrooms: 1, bathrooms: 1, image: '', images: [] })
       setLegalDoc(null)
       setTimeout(() => onSuccess?.(), 1800)
     }
@@ -298,9 +415,55 @@ function AddPropertyForm({ user, onSuccess }) {
               onFocus={e => e.target.style.borderColor = '#093880'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Location *</label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+              Location * {searchingLocation && <span style={{ color: '#093880', fontWeight: 400 }}> (Searching...)</span>}
+            </label>
             <input id="prop-location" placeholder="e.g. Thamel, Kathmandu" value={form.location} onChange={patch('location')} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = '#093880'} onBlur={e => { e.target.style.borderColor = '#e5e7eb'; handleLocationBlur() }} />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>City</label>
+            <input id="prop-city" placeholder="e.g. Kathmandu" value={form.city} onChange={patch('city')} style={inputStyle}
               onFocus={e => e.target.style.borderColor = '#093880'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>District</label>
+            <input id="prop-district" placeholder="e.g. Kathmandu" value={form.district} onChange={patch('district')} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = '#093880'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Zip Code</label>
+            <input id="prop-zip" placeholder="e.g. 44600" value={form.zipCode} onChange={patch('zipCode')} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = '#093880'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+          </div>
+
+          <div style={{ gridColumn: '1 / -1', height: 400, marginBottom: 12, borderRadius: 12, overflow: 'hidden', border: '1.5px solid #e5e7eb', position: 'relative' }}>
+            <MapContainer center={[27.7172, 85.3240]} zoom={12} style={{ height: '100%', width: '100%' }}>
+              <ChangeView center={[form.latitude || 27.7172, form.longitude || 85.3240]} zoom={form.latitude ? 15 : 12} />
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {form.latitude && form.longitude && (
+                <Marker position={[form.latitude, form.longitude]}>
+                  <Popup>{form.location}</Popup>
+                </Marker>
+              )}
+            </MapContainer>
+
+            {searchingLocation && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    style={{ width: 30, height: 30, border: '3px solid #f3f3f3', borderTop: '3px solid #093880', borderRadius: '50%' }}
+                  />
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#093880' }}>Searching location...</p>
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Description</label>
@@ -318,17 +481,34 @@ function AddPropertyForm({ user, onSuccess }) {
           </div>
         </div>
 
-        {/* Image picker */}
+        {/* Image upload */}
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 10 }}>Property Image</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-            {SAMPLE_IMAGES.map(img => (
-              <div key={img} onClick={() => setForm(f => ({ ...f, image: img, images: [img] }))}
-                style={{ aspectRatio: '4/3', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', border: `2.5px solid ${form.image === img ? '#093880' : 'transparent'}`, transition: 'all 0.2s' }}>
-                <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-            ))}
-          </div>
+          <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+            Property Images <span style={{ color: '#dc2626' }}>* Min 5 Required</span>
+          </label>
+          <label htmlFor="property-images-upload"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, border: `2px dashed #e5e7eb`, background: '#fafafa', cursor: 'pointer', transition: 'all 0.2s' }}>
+            <FiUpload size={20} style={{ color: '#9ca3af', flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#6b7280' }}>
+                Click to upload property images
+              </p>
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>JPG, PNG, WebP up to 5MB · Minimum 5 images</p>
+            </div>
+          </label>
+          <input id="property-images-upload" type="file" accept=".jpg,.jpeg,.png,.webp" multiple style={{ display: 'none' }} onChange={handleImageUpload} />
+          
+          {/* Previews */}
+          {form.images?.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginTop: 12 }}>
+              {form.images.map((img, idx) => (
+                <div key={idx} style={{ aspectRatio: '4/3', borderRadius: 10, overflow: 'hidden', border: '1px solid #e5e7eb', position: 'relative' }}>
+                  <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button type="button" onClick={() => removeImage(idx)} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Legal Document Upload */}
@@ -361,9 +541,11 @@ function AddPropertyForm({ user, onSuccess }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {ALL_AMENITIES.map(a => {
               const sel = form.amenities.includes(a)
+              const Icon = AMENITY_ICONS[a]
               return (
                 <button key={a} type="button" onClick={() => toggleAmenity(a)}
-                  style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px solid ${sel ? '#093880' : '#e5e7eb'}`, background: sel ? '#eff6ff' : '#fff', color: sel ? '#093880' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 999, border: `1.5px solid ${sel ? '#093880' : '#e5e7eb'}`, background: sel ? '#eff6ff' : '#fff', color: sel ? '#093880' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+                  {Icon && <Icon size={14} style={{ color: sel ? '#093880' : '#9ca3af' }} />}
                   {a}
                 </button>
               )
@@ -392,14 +574,19 @@ function AddPropertyForm({ user, onSuccess }) {
 // SECTION: My Listings
 // ──────────────────────────────────────────────────
 function MyListings({ user, setSection }) {
-  const { getHostProperties, deleteHostProperty, updateHostProperty } = useAppData()
+  const { getHostProperties, deleteHostProperty, updateHostProperty, fetchHostListings } = useAppData()
   const { showToast } = useToast()
-  const props = getHostProperties(user.email)
+  
+  useEffect(() => {
+    fetchHostListings()
+  }, [fetchHostListings])
+
+  const props = getHostProperties(user.id)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [confirm, setConfirm] = useState(null)
 
-  const startEdit = (p) => { setEditingId(p.id); setEditForm({ title: p.title, price: p.price, location: p.location }) }
+  const startEdit = (p) => { setEditingId(p.id); setEditForm({ title: p.title || '', price: p.price || '', location: p.location || '' }) }
   const saveEdit = () => { updateHostProperty(editingId, editForm); setEditingId(null); showToast('Property updated successfully.', 'success') }
 
   return (
@@ -471,6 +658,14 @@ function MyListings({ user, setSection }) {
                   </>
                 )}
               </div>
+              {p.latitude && p.longitude && (
+                <div style={{ width: 120, height: 86, borderRadius: 14, overflow: 'hidden', border: '1.5px solid #e5e7eb', flexShrink: 0, alignSelf: 'center' }}>
+                  <MapContainer center={[p.latitude, p.longitude]} zoom={11} zoomControl={false} attributionControl={false} style={{ height: '100%', width: '100%' }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <Marker position={[p.latitude, p.longitude]} />
+                  </MapContainer>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>
@@ -503,10 +698,21 @@ function MyListings({ user, setSection }) {
 // SECTION: Host Bookings
 // ──────────────────────────────────────────────────
 function HostBookingsSection({ user }) {
-  const { getHostBookings } = useAppData()
-  const bookings = getHostBookings(user.email)
-  const confirmed = bookings.filter(b => b.status === 'confirmed')
-  const cancelled = bookings.filter(b => b.status === 'cancelled')
+  const { getHostBookings, fetchHostBookings } = useAppData()
+
+  useEffect(() => {
+    if (user?.id) fetchHostBookings(user.id)
+  }, [user?.id, fetchHostBookings])
+
+  console.log('[HostBookingsSection] user.id is:', user?.id, 'email is:', user?.email)
+  const bookings = getHostBookings(user.id)
+  console.log('[HostBookingsSection] bookings returned:', bookings.length)
+  
+  // Sort bookings by creation date (newest first)
+  const sortedBookings = [...bookings].sort((a, b) => new Date(b.createdAt || 0) < new Date(a.createdAt || 0) ? 1 : -1)
+
+  const confirmed = sortedBookings.filter(b => b.status === 'confirmed')
+  const cancelled = sortedBookings.filter(b => b.status === 'cancelled')
 
   return (
     <div>
@@ -521,7 +727,7 @@ function HostBookingsSection({ user }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {bookings.map((b, i) => (
+          {sortedBookings.map((b, i) => (
             <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
               style={{ background: '#fff', borderRadius: 18, border: `1.5px solid ${b.status === 'confirmed' ? '#d1fae5' : '#fee2e2'}`, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flex: 1, minWidth: 0 }}>
@@ -537,9 +743,15 @@ function HostBookingsSection({ user }) {
                   <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 15, color: '#093880' }}>NPR {b.totalPrice?.toLocaleString()}</p>
                   <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Total</p>
                 </div>
-                <span style={{ background: b.status === 'confirmed' ? '#ecfdf5' : '#fef2f2', color: b.status === 'confirmed' ? '#16a34a' : '#dc2626', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: `1px solid ${b.status === 'confirmed' ? '#86efac' : '#fecaca'}` }}>
-                  {b.status === 'confirmed' ? '✓ Confirmed' : '✕ Cancelled'}
-                </span>
+                {b.status === 'confirmed' && (
+                  <span style={{ background: '#ecfdf5', color: '#16a34a', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: '1px solid #86efac' }}>✓ Confirmed</span>
+                )}
+                {b.status === 'pending' && (
+                  <span style={{ background: '#fffbeb', color: '#d97706', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: '1px solid #fde68a' }}>⌛ Pending</span>
+                )}
+                {b.status === 'cancelled' && (
+                  <span style={{ background: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 999, border: '1px solid #fecaca' }}>✕ Cancelled</span>
+                )}
               </div>
             </motion.div>
           ))}
@@ -552,10 +764,309 @@ function HostBookingsSection({ user }) {
 // ──────────────────────────────────────────────────
 // SECTION: Host Reviews
 // ──────────────────────────────────────────────────
+function HostMessagesSection({ user }) {
+  const { showToast } = useToast()
+  const [conversations, setConversations] = useState([])
+  const [selectedConv, setSelectedConv] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  const [loadingConv, setLoadingConv] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [isTyping, setIsTyping] = useState(false)
+  const [isLocalTyping, setIsLocalTyping] = useState(false)
+
+  const messagesEndRef = useRef(null)
+  const typingTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      setLoadingConv(true)
+      try {
+        const token = localStorage.getItem('grihastha_token')
+        const { data } = await axios.get(`${API_BASE_URL}/v1/conversations`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (data?.success) {
+          setConversations(data.data)
+          if (data.data.length > 0) setSelectedConv(data.data[0])
+        }
+      } catch (err) {
+        showToast('Failed to load conversations.', 'error')
+      } finally {
+        setLoadingConv(false)
+      }
+    }
+    fetchConversations()
+  }, [showToast])
+
+  const [socket, setSocket] = useState(null)
+
+  useEffect(() => {
+    const s = io(API_BASE_URL)
+    setSocket(s)
+    
+    s.on('connect', () => {
+      console.log('[SOCKET] Connected to server')
+    })
+    
+    return () => s.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedConv || !socket) return
+    
+    // Clear messages when switching conversations
+    setMessages([])
+    
+    // Join conversation room
+    socket.emit('join_conversation', selectedConv.id)
+    
+    const fetchMessages = async () => {
+      setLoadingMsg(true)
+      try {
+        const token = localStorage.getItem('grihastha_token')
+        const { data } = await axios.get(`${API_BASE_URL}/v1/conversations/${selectedConv.id}/messages`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (data?.success) {
+          const decrypted = data.data.map(msg => {
+            try {
+              const bytes = CryptoJS.AES.decrypt(msg.content, SECRET_KEY)
+              const decryptedText = bytes.toString(CryptoJS.enc.Utf8)
+              return { ...msg, content: decryptedText || msg.content }
+            } catch (e) { return msg }
+          })
+          setMessages(decrypted)
+        }
+      } catch (err) {
+        showToast('Failed to load messages.', 'error')
+      } finally {
+        setLoadingMsg(false)
+      }
+    }
+    
+    fetchMessages()
+    
+    const handleReceiveMessage = (data) => {
+      console.log('[SOCKET] Received message:', data)
+      // Decrypt message
+      let decryptedContent = data.content
+      try {
+        const bytes = CryptoJS.AES.decrypt(data.content, SECRET_KEY)
+        const text = bytes.toString(CryptoJS.enc.Utf8)
+        decryptedContent = text || data.content
+      } catch (e) {}
+      
+      setMessages(prev => [...prev, { ...data, content: decryptedContent }])
+    }
+    
+    const handleUserTyping = (data) => {
+      if (data.sender_id !== user.id) {
+        setIsTyping(true)
+      }
+    }
+    
+    const handleUserStopTyping = (data) => {
+      if (data.sender_id !== user.id) {
+        setIsTyping(false)
+      }
+    }
+    
+    socket.on('receive_message', handleReceiveMessage)
+    socket.on('user_typing', handleUserTyping)
+    socket.on('user_stop_typing', handleUserStopTyping)
+    
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+      socket.off('user_typing', handleUserTyping)
+      socket.off('user_stop_typing', handleUserStopTyping)
+    }
+  }, [selectedConv, socket, showToast])
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value)
+    
+    if (socket && selectedConv) {
+      // Only emit typing if we haven't already
+      if (!isLocalTyping) {
+        setIsLocalTyping(true)
+        socket.emit('typing', { conversationId: selectedConv.id, sender_id: user.id })
+      }
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stop_typing', { conversationId: selectedConv.id, sender_id: user.id })
+        setIsLocalTyping(false)
+      }, 2000)
+    }
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !selectedConv) return
+    setSending(true)
+    try {
+      const token = localStorage.getItem('grihastha_token')
+      const encryptedText = CryptoJS.AES.encrypt(newMessage.trim(), SECRET_KEY).toString()
+      const { data } = await axios.post(`${API_BASE_URL}/v1/conversations/${selectedConv.id}/messages`, 
+        { text: encryptedText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (data?.success) {
+        setMessages([...messages, { ...data.data, content: newMessage.trim() }])
+        setNewMessage('')
+        
+        // Emit to socket
+        socket.emit('send_message', {
+          conversationId: selectedConv.id,
+          content: encryptedText,
+          sender_id: user.id,
+          created_at: data.data.created_at
+        })
+      }
+    } catch (err) {
+      showToast('Failed to send message.', 'error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleStartAdminChat = async () => {
+    try {
+      const token = localStorage.getItem('grihastha_token')
+      const { data } = await axios.post(`${API_BASE_URL}/v1/conversations`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      if (data?.success) {
+        showToast("Opening chat with Admin Support...", "success")
+        const response = await axios.get(`${API_BASE_URL}/v1/conversations`, { headers: { Authorization: `Bearer ${token}` } })
+        if (response.data?.success) {
+          setConversations(response.data.data)
+          const found = response.data.data.find(c => c.id === data.id)
+          if (found) setSelectedConv(found)
+        }
+      }
+    } catch (err) { showToast('Failed to start admin chat.', 'error') }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0, fontFamily: "'Poppins', sans-serif" }}>Messages</h2>
+          <p style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>Chat with your guests and platform support</p>
+        </div>
+        <button onClick={handleStartAdminChat} style={{ padding: '8px 16px', borderRadius: 12, background: '#e0f2fe', color: '#0369a1', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+          Contact Support
+        </button>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', background: '#fff', borderRadius: 20, border: '1.5px solid #e5e7eb', overflow: 'hidden' }}>
+        {/* Sidebar */}
+        <div style={{ width: 320, borderRight: '1.5px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loadingConv ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#64748b' }}>Loading...</div>
+            ) : conversations.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>No conversations yet.</div>
+            ) : (
+              conversations.map(conv => {
+                const isDispute = !conv.host_id
+                const otherName = isDispute ? 'Admin Support' : (conv.guest_id === user?.id ? conv.host_name : conv.guest_name)
+                const avatarUrl = isDispute ? null : (conv.guest_id === user?.id ? conv.host_avatar : conv.guest_avatar)
+                const isSelected = selectedConv?.id === conv.id
+                return (
+                  <div key={conv.id} onClick={() => setSelectedConv(conv)}
+                    style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: isSelected ? '#f1f5f9' : 'transparent', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: isDispute ? '#e0f2fe' : '#093880', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDispute ? '#0369a1' : '#fff', fontWeight: 700, fontSize: 14 }}>
+                      {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : isDispute ? <FiServer size={18} /> : otherName.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{otherName}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.listing_title || 'Dispute'}</div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+        {/* Chat Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
+          {selectedConv ? (
+            <>
+              <div style={{ padding: '16px 20px', background: '#fff', borderBottom: '1.5px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: !selectedConv.host_id ? '#e0f2fe' : '#093880', display: 'flex', alignItems: 'center', justifyContent: 'center', color: !selectedConv.host_id ? '#0369a1' : '#fff', fontWeight: 700, fontSize: 14 }}>
+                  {!selectedConv.host_id ? <FiServer size={18} /> : (selectedConv.guest_id === user?.id ? selectedConv.host_avatar : selectedConv.guest_avatar) ? <img src={selectedConv.guest_id === user?.id ? selectedConv.host_avatar : selectedConv.guest_avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (!selectedConv.host_id ? 'A' : (selectedConv.guest_id === user?.id ? selectedConv.host_name : selectedConv.guest_name).charAt(0).toUpperCase())}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{!selectedConv.host_id ? 'Admin Support' : (selectedConv.guest_id === user?.id ? selectedConv.host_name : selectedConv.guest_name)}</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>{selectedConv.listing_title || 'Dispute Ticket'}</p>
+                </div>
+              </div>
+              <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {loadingMsg && messages.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#64748b' }}>Loading messages...</div>
+                ) : messages.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14, marginTop: 'auto', marginBottom: 'auto' }}>No messages yet.</div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const isMe = msg.sender_id === user?.id || (user?.role === 'admin' && msg.sender_admin_id)
+                    const isAdminMsg = !!msg.sender_admin_id
+                    return (
+                      <div key={msg.id || idx} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                        <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px', background: isMe ? '#093880' : isAdminMsg ? '#e0f2fe' : '#fff', color: isMe ? '#fff' : '#1e293b', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', fontSize: 13, border: isMe ? 'none' : '1px solid #e2e8f0' }}>
+                          {!isMe && <div style={{ fontSize: 10, fontWeight: 700, color: isAdminMsg ? '#0369a1' : '#64748b', marginBottom: 2 }}>{isAdminMsg ? 'Admin' : 'Guest'}</div>}
+                          <div style={{ wordBreak: 'break-word' }}>{msg.content}</div>
+                          <div style={{ fontSize: 9, opacity: 0.7, textAlign: 'right', marginTop: 4 }}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+                {isTyping && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 2px', background: '#fff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {[0, 1, 2].map(i => (
+                          <motion.div
+                            key={i}
+                            style={{ width: 6, height: 6, borderRadius: '50%', background: '#64748b' }}
+                            animate={{ y: [0, -5, 0] }}
+                            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              <form onSubmit={handleSendMessage} style={{ padding: '16px', background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
+                <input type="text" value={newMessage} onChange={handleInputChange} placeholder="Type your message..." style={{ flex: 1, padding: '12px 16px', borderRadius: 999, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }} />
+                <button type="submit" disabled={sending || !newMessage.trim()} style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: sending || !newMessage.trim() ? 0.6 : 1 }}><FiSend size={18} /></button>
+              </form>
+            </>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+              <FiMessageSquare size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
+              <p style={{ fontSize: 15, fontWeight: 600 }}>Select a conversation to start chatting</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function HostReviewsSection({ user }) {
   const { getHostProperties, getPropertyReviews, getPropertyAverageRating } = useAppData()
   const navigate = useNavigate()
-  const props = getHostProperties(user.email)
+  const props = getHostProperties(user.id)
 
   const allReviewsWithProp = props.flatMap(p => {
     const revs = getPropertyReviews(p.id)
@@ -658,7 +1169,7 @@ function HostReviewsSection({ user }) {
 // ──────────────────────────────────────────────────
 // SECTION: Profile
 // ──────────────────────────────────────────────────
-function ProfileSection({ user, onLogout }) {
+function ProfileSection({ user, onLogout, onAvatarUpload }) {
   return (
     <div>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: 24, color: '#0f172a', marginBottom: 24 }}>My Profile</h2>
@@ -667,9 +1178,22 @@ function ProfileSection({ user, onLogout }) {
         <div style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 24, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1.5px solid #f0f4ff', overflow: 'hidden' }}>
           <div style={{ background: 'linear-gradient(135deg,#0a2342,#093880,#1a56c4)', padding: '32px 28px', display: 'flex', alignItems: 'center', gap: 20, position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: -30, right: -30, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
-            <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 30, fontFamily: "'Poppins', sans-serif", flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
-              {user?.avatar}
+            
+            {/* Avatar with upload overlay */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 30, fontFamily: "'Poppins', sans-serif", overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+                {user?.avatar_url ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.avatar || user?.name?.charAt(0).toUpperCase())}
+              </div>
+              <button 
+                onClick={() => document.getElementById('profile-avatar-upload-input').click()}
+                style={{ position: 'absolute', bottom: -2, right: -2, width: 28, height: 28, borderRadius: '50%', background: '#fff', border: '1.5px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                title="Upload Profile Picture"
+              >
+                <FiUpload size={12} style={{ color: '#093880' }} />
+              </button>
+              <input type="file" id="profile-avatar-upload-input" style={{ display: 'none' }} accept="image/*" onChange={onAvatarUpload} />
             </div>
+
             <div style={{ color: '#fff' }}>
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 4 }}>{user?.name}</h3>
               <p style={{ opacity: 0.7, fontSize: 14, marginBottom: 8 }}>{user?.email}</p>
@@ -702,17 +1226,67 @@ function ProfileSection({ user, onLogout }) {
 // MAIN VendorHome component
 // ──────────────────────────────────────────────────
 export default function VendorHome() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const navigate = useNavigate()
-  const { getHostAnalytics, getUserKYC } = useAppData()
+  const { getHostAnalytics, getUserKYC, fetchHostListings, fetchHostBookings } = useAppData()
 
   const [section, setSection] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
 
+  const [dbKycStatus, setDbKycStatus] = useState('not_submitted')
+
+  useEffect(() => {
+    const fetchKycStatus = async () => {
+      try {
+        const { data } = await hostAPI.getVerificationStatus()
+        setDbKycStatus(data.status)
+      } catch (err) {
+        if (err.response?.status !== 404) {
+          console.error('Failed to fetch KYC status:', err)
+        }
+      }
+    }
+    fetchKycStatus()
+  }, [])
+
+  useEffect(() => {
+    if (user?.id) fetchHostListings(user.id)
+  }, [user?.id, fetchHostListings])
+
+  useEffect(() => {
+    if (user?.id) fetchHostBookings(user.id)
+  }, [user?.id, fetchHostBookings])
+
+  const { showToast } = useToast()
+
   const handleLogout = () => { logout(); navigate('/') }
-  const analytics = getHostAnalytics(user?.email)
+  
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    try {
+      const res = await mediaAPI.upload(formData)
+      if (res.data?.success) {
+        const url = res.data.data.url
+        const profileRes = await userAPI.updateProfile({ avatar_url: url })
+        if (profileRes.data?.success) {
+          showToast('Profile picture updated!', 'success')
+          updateUser({ avatar_url: url })
+        }
+      }
+    } catch (err) {
+      showToast('Failed to upload profile picture', 'error')
+      console.error(err)
+    }
+  }
+
+  const analytics = getHostAnalytics(user?.id)
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -722,7 +1296,7 @@ export default function VendorHome() {
   }, [])
 
   const kycData = getUserKYC?.(user?.email) || { status: 'not_submitted' }
-  const isKycVerified = kycData.status === 'verified'
+  const isKycVerified = dbKycStatus === 'approved' || dbKycStatus === 'APPROVED' || dbKycStatus === 'verified' || dbKycStatus === 'verified'
 
   // KYC Gate — shown when host tries to access gated sections without verification
   const KYCGate = () => (
@@ -754,7 +1328,7 @@ export default function VendorHome() {
             style={{ marginTop: 24, width: '100%', padding: '13px', borderRadius: 13, border: 'none', background: 'linear-gradient(135deg,#093880,#1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Poppins',sans-serif", boxShadow: '0 4px 16px rgba(9,56,128,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <FiShield size={15} /> Complete KYC Verification
           </motion.button>
-          {kycData.status === 'pending' && (
+          {(dbKycStatus === 'pending' || dbKycStatus === 'under_review') && (
             <p style={{ textAlign: 'center', fontSize: 12, color: '#f59e0b', marginTop: 12, fontWeight: 600 }}>
               ⏳ Your ID is currently under review. Please wait for admin approval.
             </p>
@@ -766,13 +1340,14 @@ export default function VendorHome() {
 
   const renderSection = () => {
     switch (section) {
-      case 'dashboard': return <DashboardOverview user={user} analytics={analytics} setSection={setSection} isKycVerified={isKycVerified} kycStatus={kycData.status} />
+      case 'dashboard': return <DashboardOverview user={user} analytics={analytics} setSection={setSection} isKycVerified={isKycVerified} kycStatus={dbKycStatus} />
       case 'add': return isKycVerified ? <AddPropertyForm user={user} onSuccess={() => setSection('listings')} /> : <KYCGate />
       case 'listings': return isKycVerified ? <MyListings user={user} setSection={setSection} /> : <KYCGate />
       case 'bookings': return <HostBookingsSection user={user} />
+      case 'messages': return <HostMessagesSection user={user} />
       case 'reviews': return <HostReviewsSection user={user} />
       case 'kyc': return <KYCPage onBack={() => setSection('dashboard')} />
-      case 'profile': return <ProfileSection user={user} onLogout={handleLogout} />
+      case 'profile': return <ProfileSection user={user} onLogout={handleLogout} onAvatarUpload={handleAvatarUpload} />
       default: return null
     }
   }
@@ -806,8 +1381,8 @@ export default function VendorHome() {
       {/* User chip */}
       <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,0.08)' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #4f8ef7, #93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 14, flexShrink: 0, fontFamily: "'Poppins', sans-serif" }}>
-            {user?.avatar}
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #4f8ef7, #93c5fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a2342', fontWeight: 900, fontSize: 14, flexShrink: 0, fontFamily: "'Poppins', sans-serif", overflow: 'hidden' }}>
+            {user?.avatar_url ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.avatar || user?.name?.charAt(0).toUpperCase())}
           </div>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
@@ -906,8 +1481,8 @@ export default function VendorHome() {
                 whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                 onClick={() => setProfileOpen(o => !o)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Poppins', sans-serif" }}>
-                  {user?.avatar}
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Poppins', sans-serif", overflow: 'hidden' }}>
+                  {user?.avatar_url ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.avatar || user?.name?.charAt(0).toUpperCase())}
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name?.split(' ')[0]}</span>
               </motion.button>
@@ -950,6 +1525,7 @@ export default function VendorHome() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              <input type="file" id="host-avatar-upload" style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
             </div>
           </div>
         </div>
