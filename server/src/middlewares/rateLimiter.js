@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
  */
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -32,4 +32,20 @@ const strictRateLimiter = rateLimit({
   },
 });
 
-export { rateLimiter, strictRateLimiter };
+/**
+ * OTP rate limiter for signup verification.
+ * Max 3 requests per 15 minutes per IP.
+ */
+const otpRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many attempts. Please try again later.",
+    errors: [],
+  },
+});
+
+export { rateLimiter, strictRateLimiter, otpRateLimiter };
