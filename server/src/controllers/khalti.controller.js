@@ -62,11 +62,14 @@ export const initiateKhaltiPayment = async (req, res) => {
     // 2. Call Khalti v2 Initiate API
     const khaltiInitiateUrl =
       "https://dev.khalti.com/api/v2/epayment/initiate/";
-    const returnUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/payment-success?booking_id=${booking.id}`;
+    
+    // Ensure no trailing slash in CLIENT_URL to prevent double slashes
+    const baseUrl = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "");
+    const returnUrl = `${baseUrl}/payment-success?booking_id=${booking.id}`;
 
     const khaltiPayload = {
       return_url: returnUrl,
-      website_url: process.env.CLIENT_URL || "http://localhost:5173",
+      website_url: baseUrl,
       amount: amountInPaisa,
       purchase_order_id: booking.id,
       purchase_order_name: `Booking: ${booking.listing_title}`,
@@ -123,7 +126,6 @@ export const initiateKhaltiPayment = async (req, res) => {
  */
 export const verifyKhaltiPayment = async (req, res) => {
   try {
-    const userId = req.user.sub;
     const { token, amount, pidx, booking_id } = req.body;
 
     if ((!token && !pidx) || (!amount && !pidx) || !booking_id) {
@@ -186,14 +188,14 @@ export const verifyKhaltiPayment = async (req, res) => {
     try {
       await query(
         `UPDATE bookings SET payment_status = 'paid', status = 'CONFIRMED', updated_at = NOW()
-         WHERE id = $1 AND guest_id = $2`,
-        [booking_id, userId],
+         WHERE id = $1`,
+        [booking_id],
       );
 
       await query(
         `UPDATE payments SET status = 'succeeded', khalti_pidx = $2, updated_at = NOW()
          WHERE booking_id = $1`,
-        [booking_id, token],
+        [booking_id, pidx || token],
       );
     } catch (dbError) {
       console.error(`[KHALTI] Database update failed:`, dbError.message);
