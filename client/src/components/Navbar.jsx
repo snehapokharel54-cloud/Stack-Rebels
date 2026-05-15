@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiLogOut, FiMenu, FiX, FiBell, FiHeart, FiBookOpen, FiUser } from 'react-icons/fi'
+import { FiSearch, FiLogOut, FiMenu, FiX, FiBell, FiHeart, FiBookOpen, FiUser, FiMessageSquare } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useNavigate } from 'react-router-dom'
@@ -120,82 +120,108 @@ export default function Navbar() {
 
           {/* Right icons — desktop */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {/* Wishlist */}
-            <motion.button id="navbar-wishlist-btn" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/wishlist')}
-              title="Wishlist"
-              style={{ position: 'relative', width: 40, height: 40, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#374151' }}>
-              <FiHeart size={17} />
-              {wishlist.length > 0 && (
-                <span style={{ position: 'absolute', top: -2, right: -2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {wishlist.length}
-                </span>
-              )}
-            </motion.button>
+            {user ? (
+              <>
+                {/* Wishlist */}
+                <motion.button id="navbar-wishlist-btn" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/wishlist')}
+                  title="Wishlist"
+                  style={{ position: 'relative', width: 40, height: 40, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#374151' }}>
+                  <FiHeart size={17} />
+                  {wishlist.length > 0 && (
+                    <span style={{ position: 'absolute', top: -2, right: -2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {wishlist.length}
+                    </span>
+                  )}
+                </motion.button>
 
-            {/* Notifications */}
-            <motion.button id="navbar-notif-btn" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/notifications')}
-              title="Notifications"
-              style={{ position: 'relative', width: 40, height: 40, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#374151' }}>
-              <FiBell size={17} />
-              {unreadCount > 0 && (
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-                  style={{ position: 'absolute', top: -2, right: -2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {unreadCount}
-                </motion.span>
-              )}
-            </motion.button>
+                {/* Notifications */}
+                <motion.button id="navbar-notif-btn" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/notifications')}
+                  title="Notifications"
+                  style={{ position: 'relative', width: 40, height: 40, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#374151' }}>
+                  <FiBell size={17} />
+                  {unreadCount > 0 && (
+                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                      style={{ position: 'absolute', top: -2, right: -2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {unreadCount}
+                    </motion.span>
+                  )}
+                </motion.button>
 
-            {/* Profile dropdown */}
-            <div ref={profileRef} style={{ position: 'relative' }}>
-              <motion.button id="navbar-profile-btn" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-                onClick={() => setProfileOpen(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 6px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Poppins', sans-serif" }}>
-                  {user?.avatar}
+                {/* Profile dropdown */}
+                <div ref={profileRef} style={{ position: 'relative' }}>
+                  <motion.button id="navbar-profile-btn" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                    onClick={() => setProfileOpen(o => !o)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 6px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Poppins', sans-serif", overflow: 'hidden' }}>
+                      {user?.avatar_url ? (
+                        <img src={user.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        user?.avatar
+                      )}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name?.split(' ')[0]}</span>
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {profileOpen && (
+                      <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 220, background: '#fff', borderRadius: 18, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', border: '1.5px solid #f0f0f0', overflow: 'hidden', zIndex: 300 }}>
+                        <div style={{ padding: '16px 18px', borderBottom: '1px solid #f0f0f0' }}>
+                          <p style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{user?.name}</p>
+                          <p style={{ fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{user?.role} account</p>
+                        </div>
+                        {[
+                          { label: 'Profile', icon: FiUser, action: () => { navigate('/profile'); setProfileOpen(false) } },
+                          { label: 'My Bookings', icon: FiBookOpen, action: () => { navigate('/bookings'); setProfileOpen(false) } },
+                          { label: 'Wishlist', icon: FiHeart, action: () => { navigate('/wishlist'); setProfileOpen(false) } },
+                          { label: 'Notifications', icon: FiBell, action: () => { navigate('/notifications'); setProfileOpen(false) } },
+                          { label: 'Messages', icon: FiMessageSquare, action: () => { navigate('/messages'); setProfileOpen(false) } },
+                        ].map(item => (
+                          <button key={item.label} onClick={item.action}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 18px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'left', transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                            <item.icon size={14} style={{ color: '#6b7280' }} /> {item.label}
+                            {item.label === 'Notifications' && unreadCount > 0 && (
+                              <span style={{ marginLeft: 'auto', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>{unreadCount}</span>
+                            )}
+                            {item.label === 'Wishlist' && wishlist.length > 0 && (
+                              <span style={{ marginLeft: 'auto', background: '#f3f4f6', color: '#374151', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>{wishlist.length}</span>
+                            )}
+                          </button>
+                        ))}
+                        <div style={{ borderTop: '1px solid #f0f0f0', padding: '8px 8px' }}>
+                          <button onClick={handleLogout}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#dc2626', transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <FiLogOut size={14} /> Sign Out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name?.split(' ')[0]}</span>
-              </motion.button>
-
-              <AnimatePresence>
-                {profileOpen && (
-                  <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 220, background: '#fff', borderRadius: 18, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', border: '1.5px solid #f0f0f0', overflow: 'hidden', zIndex: 300 }}>
-                    <div style={{ padding: '16px 18px', borderBottom: '1px solid #f0f0f0' }}>
-                      <p style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{user?.name}</p>
-                      <p style={{ fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{user?.role} account</p>
-                    </div>
-                    {[
-                      { label: 'My Bookings', icon: FiBookOpen, action: () => { navigate('/bookings'); setProfileOpen(false) } },
-                      { label: 'Wishlist', icon: FiHeart, action: () => { navigate('/wishlist'); setProfileOpen(false) } },
-                      { label: 'Notifications', icon: FiBell, action: () => { navigate('/notifications'); setProfileOpen(false) } },
-                    ].map(item => (
-                      <button key={item.label} onClick={item.action}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 18px', border: 'none', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151', textAlign: 'left', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                        <item.icon size={14} style={{ color: '#6b7280' }} /> {item.label}
-                        {item.label === 'Notifications' && unreadCount > 0 && (
-                          <span style={{ marginLeft: 'auto', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>{unreadCount}</span>
-                        )}
-                        {item.label === 'Wishlist' && wishlist.length > 0 && (
-                          <span style={{ marginLeft: 'auto', background: '#f3f4f6', color: '#374151', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>{wishlist.length}</span>
-                        )}
-                      </button>
-                    ))}
-                    <div style={{ borderTop: '1px solid #f0f0f0', padding: '8px 8px' }}>
-                      <button onClick={handleLogout}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#dc2626', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <FiLogOut size={14} /> Sign Out
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Guest: Login / Sign Up buttons */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/auth?mode=login')}
+                  style={{ padding: '9px 20px', borderRadius: 999, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', fontFamily: "'Poppins', sans-serif" }}>
+                  Log in
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/auth?mode=signup')}
+                  style={{ padding: '9px 20px', borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 3px 12px rgba(9,56,128,0.3)', fontFamily: "'Poppins', sans-serif" }}>
+                  Sign up
+                </motion.button>
+              </>
+            )}
 
             {/* Mobile toggle */}
             <button onClick={() => setMobileOpen(o => !o)}
@@ -212,29 +238,44 @@ export default function Navbar() {
         {mobileOpen && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}
             style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderBottom: '1px solid #f0f0f0', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 16 }}>
-                {user?.avatar}
-              </div>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{user?.name}</p>
-                <p style={{ fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{user?.role}</p>
-              </div>
-            </div>
-            {[
-              { label: 'My Bookings', path: '/bookings' },
-              { label: `Wishlist (${wishlist.length})`, path: '/wishlist' },
-              { label: `Notifications ${unreadCount > 0 ? `(${unreadCount})` : ''}`, path: '/notifications' },
-            ].map(item => (
-              <button key={item.label} onClick={() => { navigate(item.path); setMobileOpen(false) }}
-                style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderRadius: 12, border: 'none', background: '#f9fafb', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-                {item.label}
-              </button>
-            ))}
-            <button onClick={handleLogout}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', borderRadius: 12, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-              <FiLogOut size={15} /> Logout
-            </button>
+            {user ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 16 }}>
+                    {user?.avatar}
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{user?.name}</p>
+                    <p style={{ fontSize: 12, color: '#9ca3af', textTransform: 'capitalize' }}>{user?.role}</p>
+                  </div>
+                </div>
+                {[
+                  { label: 'My Bookings', path: '/bookings' },
+                  { label: `Wishlist (${wishlist.length})`, path: '/wishlist' },
+                  { label: `Notifications ${unreadCount > 0 ? `(${unreadCount})` : ''}`, path: '/notifications' },
+                ].map(item => (
+                  <button key={item.label} onClick={() => { navigate(item.path); setMobileOpen(false) }}
+                    style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderRadius: 12, border: 'none', background: '#f9fafb', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+                    {item.label}
+                  </button>
+                ))}
+                <button onClick={handleLogout}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', borderRadius: 12, border: 'none', background: '#fef2f2', color: '#dc2626', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                  <FiLogOut size={15} /> Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { navigate('/auth?mode=login'); setMobileOpen(false) }}
+                  style={{ padding: '12px 16px', borderRadius: 12, border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
+                  Log in
+                </button>
+                <button onClick={() => { navigate('/auth?mode=signup'); setMobileOpen(false) }}
+                  style={{ padding: '12px 16px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #093880, #1a56c4)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'center' }}>
+                  Sign up
+                </button>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
