@@ -1,9 +1,54 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiUpload, FiCheck, FiX, FiClock, FiShield, FiTrash2, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
+import { FiUpload, FiCheck, FiX, FiClock, FiShield, FiTrash2, FiAlertCircle, FiCheckCircle, FiCreditCard, FiBookOpen } from 'react-icons/fi'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { hostAPI } from '../services/api'
+
+// ── Document Types ─────────────────────────────────────────────────────────────
+const DOC_TYPES = [
+  {
+    id: 'citizenship',
+    label: 'Citizenship',
+    icon: FiBookOpen,
+    color: '#2563eb',
+    bg: '#eff6ff',
+    border: '#bfdbfe',
+    sides: 2,
+    hints: {
+      front: 'Front side — All 4 corners clearly visible · JPG, PNG or PDF',
+      back: 'Back side — Include barcode / signature area',
+    },
+    tip: 'Ensure both sides of your Citizenship certificate are clearly visible, not blurry, cropped, or expired.',
+  },
+  {
+    id: 'national_id',
+    label: 'National ID',
+    icon: FiCreditCard,
+    color: '#059669',
+    bg: '#f0fdf4',
+    border: '#86efac',
+    sides: 1,
+    hints: {
+      front: 'Full card — Photo, name, and ID number visible · JPG, PNG or PDF',
+    },
+    tip: 'Ensure the National ID card is not blurry or expired. All text and photo must be clearly readable.',
+  },
+  {
+    id: 'passport',
+    label: 'Passport',
+    icon: FiShield,
+    color: '#7c3aed',
+    bg: '#f5f3ff',
+    border: '#c4b5fd',
+    sides: 1,
+    hints: {
+      front: 'Bio data page — Photo, name, passport number visible · JPG, PNG or PDF',
+    },
+    tip: 'Upload the main bio-data page of your passport showing your photo and personal details.',
+  },
+]
 
 // ── Upload Zone ────────────────────────────────────────────────────────────────
 function UploadZone({ label, hint, file, onFile, onRemove, preview, required }) {
@@ -65,30 +110,31 @@ function UploadZone({ label, hint, file, onFile, onRemove, preview, required }) 
 }
 
 // ── Status Banner ──────────────────────────────────────────────────────────────
-function StatusBanner({ status, rejectionReason }) {
+function StatusBanner({ status, rejectionReason, docType }) {
+  const docLabel = DOC_TYPES.find(d => d.id === docType)?.label || 'document'
   const configs = {
     not_submitted: {
       icon: FiShield, iconColor: '#6b7280', bg: '#f9fafb', border: '#e5e7eb',
       title: 'Identity Not Verified',
-      desc: 'Upload your National ID card to verify your identity and start listing properties.',
+      desc: `Upload your ${docLabel} to verify your identity and start listing properties.`,
       badge: null,
     },
     pending: {
       icon: FiClock, iconColor: '#d97706', bg: '#fffbeb', border: '#fde68a',
       title: 'Under Review',
-      desc: 'Your National ID has been submitted and is being reviewed by our team. Usually takes 1–2 business days.',
+      desc: `Your ${docLabel} has been submitted and is being reviewed by our team. Usually takes 1–2 business days.`,
       badge: { label: 'Pending Review', color: '#d97706', bg: '#fef3c7' },
     },
     verified: {
       icon: FiCheckCircle, iconColor: '#10b981', bg: '#f0fdf4', border: '#86efac',
       title: 'Identity Verified',
-      desc: 'Your National ID has been approved. You can now list properties on Grihastha.',
+      desc: `Your ${docLabel} has been approved. You can now list properties on Grihastha.`,
       badge: { label: 'Verified ✓', color: '#059669', bg: '#dcfce7' },
     },
     rejected: {
       icon: FiX, iconColor: '#ef4444', bg: '#fef2f2', border: '#fecaca',
       title: 'Verification Rejected',
-      desc: rejectionReason || 'Your documents were not accepted. Please resubmit clear images of your National ID.',
+      desc: rejectionReason || `Your documents were not accepted. Please resubmit clear images of your ${docLabel}.`,
       badge: { label: 'Rejected', color: '#dc2626', bg: '#fee2e2' },
     },
   }
@@ -123,12 +169,36 @@ export default function KYCPage({ onBack }) {
   const { showToast } = useToast()
 
   const kycData = getUserKYC?.(user?.email) || { status: 'not_submitted' }
-  const currentStatus = kycData.status
+  const [dbKycData, setDbKycData] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const { data } = await hostAPI.getVerificationStatus()
+        setDbKycData(data)
+      } catch (err) {
+        // 404 is expected — means no KYC record exists yet (not submitted)
+        if (err.response?.status !== 404) {
+          console.error('Failed to fetch KYC status:', err)
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStatus()
+  }, [])
+
+  const rawStatus = dbKycData?.status || kycData.status
+  const currentStatus = (rawStatus === 'approved' || rawStatus === 'APPROVED') ? 'verified' : rawStatus
+
+  const [docType, setDocType] = useState(kycData.docType || 'citizenship')
   const [files, setFiles] = useState({ front: null, back: null })
   const [previews, setPreviews] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+
+  const selectedDoc = DOC_TYPES.find(d => d.id === docType)
 
   const handleFile = (key) => (file) => {
     setFiles(f => ({ ...f, [key]: file }))
@@ -143,21 +213,46 @@ export default function KYCPage({ onBack }) {
     setPreviews(p => { const n = { ...p }; delete n[key]; return n })
   }
 
-  const canSubmit = files.front && files.back
+  const handleDocTypeChange = (newType) => {
+    setDocType(newType)
+    setFiles({ front: null, back: null })
+    setPreviews({})
+  }
+
+  // Validation: citizenship needs 2 sides, national_id and passport need 1
+  const canSubmit = selectedDoc?.sides === 2
+    ? files.front && files.back
+    : files.front
+
   const displayStatus = submitted ? 'pending' : currentStatus
 
   const handleSubmit = async () => {
-    if (!canSubmit) { showToast('Please upload both sides of your National ID.', 'warning'); return }
+    if (!canSubmit) {
+      const msg = selectedDoc?.sides === 2
+        ? `Please upload both sides of your ${selectedDoc.label}.`
+        : `Please upload your ${selectedDoc.label}.`
+      showToast(msg, 'warning')
+      return
+    }
     setSubmitting(true)
-    await new Promise(r => setTimeout(r, 1000))
-    submitKYC?.({
-      email: user?.email,
-      idFrontName: files.front.name,
-      idBackName: files.back.name,
-    })
-    setSubmitting(false)
-    setSubmitted(true)
-    showToast("National ID submitted! We'll review it within 1\u20132 days.", 'success')
+    try {
+      const formData = new FormData()
+      formData.append('ownership_type', docType)
+      formData.append('notes', 'Account Verification')
+      if (files.front) formData.append('front', files.front)
+      if (files.back) formData.append('back', files.back)
+
+      const { data } = await hostAPI.submitGeneralKYC(formData)
+      if (data.success) {
+        setSubmitted(true)
+        showToast(`${selectedDoc.label} submitted! We'll review it within 1–2 days.`, 'success')
+      }
+    } catch (err) {
+      console.error('Failed to submit KYC:', err)
+      showToast('Failed to submit KYC.', 'error')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const isLocked = currentStatus === 'pending' || currentStatus === 'verified' || submitted
@@ -171,12 +266,12 @@ export default function KYCPage({ onBack }) {
           KYC Verification
         </h2>
         <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-          Upload your National ID card to verify your identity. Required before listing properties.
+          Upload an identity document to verify yourself. Required before listing properties.
         </p>
       </div>
 
       {/* Status banner */}
-      <StatusBanner status={displayStatus} rejectionReason={kycData.rejectionReason} />
+      <StatusBanner status={displayStatus} rejectionReason={kycData.rejectionReason} docType={docType} />
 
       {/* Steps indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 28 }}>
@@ -219,14 +314,62 @@ export default function KYCPage({ onBack }) {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #f0f4ff', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', padding: '28px', marginBottom: 20 }}>
 
+            {/* Document Type Selector */}
+            {!isLocked && (
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Select Document Type
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {DOC_TYPES.map(dt => {
+                    const isActive = docType === dt.id
+                    const Icon = dt.icon
+                    return (
+                      <motion.button
+                        key={dt.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => handleDocTypeChange(dt.id)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                          padding: '16px 10px', borderRadius: 14, cursor: 'pointer',
+                          border: isActive ? `2px solid ${dt.color}` : '1.5px solid #e5e7eb',
+                          background: isActive ? dt.bg : '#fafafa',
+                          transition: 'all 0.18s ease',
+                        }}>
+                        <div style={{
+                          width: 42, height: 42, borderRadius: 12,
+                          background: isActive ? `${dt.color}18` : '#f1f5f9',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.18s',
+                        }}>
+                          <Icon size={20} style={{ color: isActive ? dt.color : '#9ca3af' }} />
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? dt.color : '#6b7280' }}>
+                          {dt.label}
+                        </span>
+                        <span style={{ fontSize: 10, color: isActive ? dt.color : '#9ca3af', fontWeight: 500, opacity: 0.8 }}>
+                          {dt.sides === 2 ? '2 sides' : '1 side'}
+                        </span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Section header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FiShield size={20} style={{ color: '#093880' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: selectedDoc?.bg || '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {selectedDoc && <selectedDoc.icon size={20} style={{ color: selectedDoc.color }} />}
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', margin: 0 }}>National ID Card</h3>
-                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Citizenship certificate or passport — both sides required</p>
+                <h3 style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, color: '#0f172a', margin: 0 }}>
+                  {selectedDoc?.label || 'Document'}
+                </h3>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
+                  {selectedDoc?.sides === 2 ? 'Upload both sides of the document' : 'Upload the document'}
+                </p>
               </div>
             </div>
 
@@ -239,24 +382,30 @@ export default function KYCPage({ onBack }) {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: selectedDoc?.sides === 2 ? 'repeat(auto-fit, minmax(220px, 1fr))' : '1fr', gap: 16 }}>
                 <UploadZone
-                  label="Front Side" hint="All 4 corners clearly visible · JPG, PNG or PDF" required
+                  label={selectedDoc?.sides === 2 ? 'Front Side' : `${selectedDoc?.label || 'Document'}`}
+                  hint={selectedDoc?.hints?.front || 'JPG, PNG or PDF'}
+                  required
                   file={files.front} onFile={handleFile('front')} onRemove={removeFile('front')} preview={previews.front}
                 />
-                <UploadZone
-                  label="Back Side" hint="Include any barcode or signature" required
-                  file={files.back} onFile={handleFile('back')} onRemove={removeFile('back')} preview={previews.back}
-                />
+                {selectedDoc?.sides === 2 && (
+                  <UploadZone
+                    label="Back Side"
+                    hint={selectedDoc?.hints?.back || 'JPG, PNG or PDF'}
+                    required
+                    file={files.back} onFile={handleFile('back')} onRemove={removeFile('back')} preview={previews.back}
+                  />
+                )}
               </div>
             )}
 
             {/* Tips */}
-            {!isLocked && (
+            {!isLocked && selectedDoc && (
               <div style={{ marginTop: 20, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 8 }}>
                 <FiAlertCircle size={14} style={{ color: '#d97706', flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 12, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
-                  Ensure the ID is <strong>not blurry, cropped or expired</strong>. Both sides must be submitted together.
+                  {selectedDoc.tip}
                 </p>
               </div>
             )}
@@ -275,8 +424,33 @@ export default function KYCPage({ onBack }) {
             You're Verified!
           </h3>
           <p style={{ fontSize: 14, color: '#059669', margin: 0 }}>
-            Your National ID has been verified. You can now list properties on Grihastha.
+            Your identity has been verified. You can now list properties on Grihastha.
           </p>
+
+          {/* Show verified documents */}
+          {dbKycData?.documents && (
+            <div style={{ marginTop: 24, textAlign: 'left' }}>
+              <p style={{ fontWeight: 700, fontSize: 14, color: '#374151', marginBottom: 12 }}>Your Verified Documents:</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {dbKycData.documents.front?.url && (
+                  <div>
+                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Front Side</p>
+                    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1.5px solid #e5e7eb' }}>
+                      <img src={dbKycData.documents.front.url} alt="Front" style={{ width: '100%', display: 'block' }} />
+                    </div>
+                  </div>
+                )}
+                {dbKycData.documents.back?.url && (
+                  <div>
+                    <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Back Side</p>
+                    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1.5px solid #e5e7eb' }}>
+                      <img src={dbKycData.documents.back.url} alt="Back" style={{ width: '100%', display: 'block' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -299,7 +473,7 @@ export default function KYCPage({ onBack }) {
           }}>
           {submitting
             ? <><span style={{ width: 16, height: 16, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin .7s linear infinite', display: 'inline-block' }} /> Submitting...</>
-            : <><FiShield size={16} /> Submit for Verification</>}
+            : <><FiShield size={16} /> Submit {selectedDoc?.label} for Verification</>}
         </motion.button>
       )}
 
