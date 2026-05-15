@@ -8,21 +8,50 @@ import Navbar from '../components/Navbar'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { paymentsAPI } from '../services/api'
 import { ReviewCard, ReviewForm, StarDisplay } from './ReviewsPage'
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
+
+const customMarkerIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+})
+
+import { 
+  Wifi, 
+  Wind, 
+  Car, 
+  Refrigerator, 
+  WashingMachine, 
+  Tv, 
+  Waves, 
+  Dumbbell, 
+  TreePine, 
+  Sun, 
+  Flame, 
+  Zap,
+} from 'lucide-react'
 
 const AMENITY_ICONS = {
-  'WiFi': FaWifi,
-  'Air Conditioning': MdAir,
-  'Parking': FaParking,
-  'Kitchen': MdKitchen,
-  'Washing Machine': MdLocalLaundryService,
-  'TV': MdTv,
-  'Pool': FaSwimmingPool,
-  'Gym': FaDumbbell,
-  'Garden': FaLeaf,
-  'Balcony': FiSun,
-  'Hot Water': FiWind,
-  'Power Backup': FiCheck,
+  'WiFi': Wifi,
+  'Air Conditioning': Wind,
+  'Parking': Car,
+  'Kitchen': Refrigerator,
+  'Washing Machine': WashingMachine,
+  'TV': Tv,
+  'Pool': Waves,
+  'Gym': Dumbbell,
+  'Garden': TreePine,
+  'Balcony': Sun,
+  'Hot Water': Flame,
+  'Power Backup': Zap,
 }
 
 
@@ -96,21 +125,49 @@ export default function PropertyDetail() {
 
   const handlePaymentConfirm = async () => {
     setIsBooking(true)
-    await new Promise(r => setTimeout(r, 1500)) // Simulate payment
-    const result = createBooking({
-      propertyId: property.id,
-      userId: user.email,
-      userEmail: user.email,
-      userName: user.name,
-      checkIn, checkOut, guests, totalPrice,
-    })
-    setIsBooking(false)
-    setShowPaymentModal(false)
-    if (!result.ok) {
-      setBookingError(result.error)
-    } else {
+    try {
+      const result = await createBooking({
+        propertyId: property.id,
+        userId: user.email,
+        userEmail: user.email,
+        userName: user.name,
+        checkIn, checkOut, guests, totalPrice,
+      })
+
+      if (!result.ok) {
+        setIsBooking(false)
+        setShowPaymentModal(false)
+        setBookingError(result.error)
+        return
+      }
+
+      // If API booking is successful, create payment intent
+      if (result.booking?.booking_id || result.booking?.id) {
+        const bookingId = result.booking.booking_id || result.booking.id
+        let intentRes
+        
+        if (paymentMethod === 'khalti') {
+          intentRes = await paymentsAPI.createKhaltiIntent({ booking_id: bookingId })
+        } else if (paymentMethod === 'card') {
+          intentRes = await paymentsAPI.createStripeIntent({ booking_id: bookingId })
+        }
+
+        if (intentRes?.data?.payment_url) {
+          // Redirect to payment page
+          window.location.href = intentRes.data.payment_url
+          return
+        }
+      }
+
+      // Fallback if no payment URL or using mock data
+      setIsBooking(false)
+      setShowPaymentModal(false)
       setBookingSuccess(true)
       showToast('Booking confirmed! Check your bookings for details.', 'success')
+    } catch (err) {
+      setIsBooking(false)
+      setShowPaymentModal(false)
+      setBookingError(err.response?.data?.message || err.message || 'Payment initiation failed')
     }
   }
 
@@ -200,9 +257,13 @@ export default function PropertyDetail() {
                   <span><FiUsers size={12} /> {property.maxGuests} guests max</span>
                 </div>
               </div>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 20, fontFamily: "'Poppins', sans-serif" }}>
-                {property.hostAvatar}
-              </div>
+              {property.hostAvatar?.startsWith('http') ? (
+                <img src={property.hostAvatar} alt={property.hostName} style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }} />
+              ) : (
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #093880, #1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 20, fontFamily: "'Poppins', sans-serif" }}>
+                  {property.hostAvatar || property.hostName?.charAt(0)?.toUpperCase()}
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -227,19 +288,37 @@ export default function PropertyDetail() {
               </div>
             </div>
 
-            {/* Map placeholder */}
+            {/* Map Section */}
             <div style={{ marginBottom: 32 }}>
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 18, color: '#0f172a', marginBottom: 16 }}>Location</h3>
-              <div style={{ borderRadius: 16, overflow: 'hidden', border: '1.5px solid #e5e7eb', height: 240, background: '#f3f4f6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FiMapPin size={24} style={{ color: '#093880' }} />
-                </div>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#374151' }}>{property.location}</p>
-                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.location + ', Nepal')}`} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: '#093880', textDecoration: 'underline', cursor: 'pointer' }}>
-                  View on Google Maps →
-                </a>
+              <div style={{ borderRadius: 16, overflow: 'hidden', border: '1.5px solid #e5e7eb', height: 320, position: 'relative', zIndex: 0 }}>
+                {property.lat && property.lng ? (
+                  <MapContainer center={[property.lat, property.lng]} zoom={14} style={{ height: '100%', width: '100%', zIndex: 1 }}>
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    <Marker position={[property.lat, property.lng]} icon={customMarkerIcon}>
+                      <Popup>
+                        <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600 }}>{property.title}</div>
+                        <div style={{ fontSize: 12 }}>{property.location}</div>
+                      </Popup>
+                    </Marker>
+                  </MapContainer>
+                ) : (
+                  <div style={{ height: '100%', background: '#f3f4f6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FiMapPin size={24} style={{ color: '#093880' }} />
+                    </div>
+                    <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: '#374151' }}>{property.location}</p>
+                    <p style={{ fontSize: 12, color: '#6b7280' }}>Map coordinates unavailable</p>
+                  </div>
+                )}
               </div>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${property.lat && property.lng ? `${property.lat},${property.lng}` : encodeURIComponent(property.location + ', Nepal')}`} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 13, color: '#093880', textDecoration: 'underline', cursor: 'pointer', display: 'inline-block', marginTop: 12 }}>
+                Open in Google Maps →
+              </a>
             </div>
 
             {/* Reviews */}
@@ -401,10 +480,14 @@ export default function PropertyDetail() {
               <div style={{ marginBottom: 20 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Payment Method</p>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  {['khalti', 'esewa', 'card'].map(m => (
+                  {['khalti', 'card'].map(m => (
                     <button key={m} onClick={() => setPaymentMethod(m)}
-                      style={{ flex: 1, padding: '12px 8px', borderRadius: 12, border: `2px solid ${paymentMethod === m ? '#093880' : '#e5e7eb'}`, background: paymentMethod === m ? '#f0f5ff' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: paymentMethod === m ? '#093880' : '#6b7280', textTransform: 'capitalize', transition: 'all 0.2s' }}>
-                      {m === 'khalti' ? 'Khalti' : m === 'esewa' ? 'eSewa' : 'Card'}
+                      style={{ flex: 1, padding: '10px 8px', borderRadius: 12, border: `2px solid ${paymentMethod === m ? '#093880' : '#e5e7eb'}`, background: paymentMethod === m ? '#f0f5ff' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', height: 48 }}>
+                      {m === 'khalti' ? (
+                        <img src="https://res.cloudinary.com/djd9xro7e/image/upload/v1778765722/khalti-ime-logo_gsz0cl.png" alt="Khalti" style={{ height: '24px', maxWidth: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <img src="https://res.cloudinary.com/djd9xro7e/image/upload/v1778765747/960px-Stripe_Logo_2C_revised_2016.svg.png_oimppe.png" alt="Stripe" style={{ height: '20px', maxWidth: '100%', objectFit: 'contain' }} />
+                      )}
                     </button>
                   ))}
                 </div>
