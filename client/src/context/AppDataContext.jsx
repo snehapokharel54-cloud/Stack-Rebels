@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { allListings } from '../data/listings'
+import { listingsAPI, bookingsAPI, wishlistsAPI, reviewsAPI, notificationsAPI, adminAPI, hostAPI } from '../services/api'
+import { getToken } from '../services/api'
 
 const AppDataContext = createContext(null)
 
@@ -64,6 +66,10 @@ export function AppDataProvider({ children }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [priceRange, setPriceRange] = useState([0, 15000])
+  const [apiListings, setApiListings] = useState([])
+  const [listingsLoading, setListingsLoading] = useState(false)
+  const [usingAPI, setUsingAPI] = useState(false)
+  const fetchedOnce = useRef(false)
 
   // Persist to localStorage
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.wishlist, JSON.stringify(wishlist)) }, [wishlist])
@@ -78,11 +84,87 @@ export function AppDataProvider({ children }) {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.creditLog, JSON.stringify(creditLog)) }, [creditLog])
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.auditLog, JSON.stringify(auditLog)) }, [auditLog])
 
-  // All available properties = static (always approved) + approved host-uploaded
-  const allProperties = [
-    ...allListings,
-    ...hostProperties.filter(p => p.approvalStatus === 'approved' && p.available !== false),
-  ]
+  // ─── Transform API listing to frontend format ────────────────────────────
+  const transformAPIListing = useCallback((apiListing) => {
+    const city = apiListing.address?.city || ''
+    const province = apiListing.address?.province || apiListing.address?.state || ''
+    const location = city && province ? `${city}, ${province}` : city || province || apiListing.location || 'Nepal'
+    return {
+      id: apiListing.id,
+      title: apiListing.title || 'Untitled Property',
+      location,
+      latitude: apiListing.address?.latitude || null,
+      longitude: apiListing.address?.longitude || null,
+      category: apiListing.category || apiListing.property_type?.toLowerCase() || 'house',
+      price: parseFloat(apiListing.price_per_night) || apiListing.price || 0,
+      rating: parseFloat(apiListing.average_rating) || parseFloat(apiListing.avg_rating) || apiListing.rating || 0,
+      reviews: parseInt(apiListing.review_count || apiListing.total_reviews || apiListing.reviews || 0),
+      image: apiListing.photos?.[0]?.url || apiListing.image || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=80',
+      images: apiListing.photos?.map(p => p.url) || apiListing.images || [],
+      tag: apiListing.tag || null,
+      description: apiListing.description || '',
+      amenities: apiListing.amenities || [],
+      hostName: apiListing.host_name || apiListing.hostName || 'Host',
+      hostAvatar: apiListing.host_avatar || (apiListing.host_name || 'H').charAt(0).toUpperCase(),
+      hostId: apiListing.host_id || apiListing.hostId || '',
+      maxGuests: apiListing.floor_plan?.guests || apiListing.maxGuests || 4,
+      bedrooms: apiListing.floor_plan?.bedrooms || apiListing.bedrooms || 1,
+      beds: apiListing.floor_plan?.beds || apiListing.beds || 1,
+      bathrooms: apiListing.floor_plan?.bathrooms || apiListing.bathrooms || 1,
+      views: apiListing.views || 0,
+      bookings: apiListing.bookings || 0,
+      lat: apiListing.address?.latitude || apiListing.latitude || apiListing.lat || 27.7172,
+      lng: apiListing.address?.longitude || apiListing.longitude || apiListing.lng || apiListing.lon || 85.3240,
+      available: apiListing.available !== false,
+      approvalStatus: apiListing.status === 'PUBLISHED' ? 'approved' : 'pending',
+      instantBook: apiListing.instant_book_enabled || false,
+      cleaningFee: parseFloat(apiListing.cleaning_fee) || 0,
+      minNights: apiListing.minimum_night_stay || 1,
+      _fromAPI: true,
+    }
+  }, [])
+
+  // ─── Fetch listings from API (with fallback) ─────────────────────────────
+  const fetchListingsFromAPI = useCallback(async (params = {}) => {
+    setListingsLoading(true)
+    try {
+      const { data } = await listingsAPI.search(params)
+      // Backend returns { listings: [...], pagination: {...} } directly
+      const listings = data?.data?.listings || data?.listings || (Array.isArray(data?.data) ? data.data : null)
+      if (listings && listings.length > 0) {
+        const transformed = listings.map(transformAPIListing)
+        setApiListings(transformed)
+        setUsingAPI(true)
+        console.log(`[AppData] ✅ Loaded ${transformed.length} listings from API`)
+        return transformed
+      } else if (listings && listings.length === 0) {
+        // API works but no listings in DB yet
+        setApiListings([])
+        setUsingAPI(true)
+        console.log('[AppData] ✅ API connected, 0 listings in database')
+        return []
+      }
+    } catch (err) {
+      console.warn('[AppData] API listings fetch failed, using mock data:', err.message)
+      setUsingAPI(false)
+    } finally {
+      setListingsLoading(false)
+    }
+    return []
+  }, [transformAPIListing])
+
+  // Attempt to fetch from API on mount
+  useEffect(() => {
+    if (!fetchedOnce.current) {
+      fetchedOnce.current = true
+      fetchListingsFromAPI()
+    }
+  }, [fetchListingsFromAPI])
+
+  // All available properties = API listings (if available) + static fallback + approved host-uploaded
+  const allProperties = usingAPI
+    ? apiListings // The API already returns all approved/published properties from the database
+    : [...allListings, ...hostProperties.filter(p => p.approvalStatus === 'approved' && p.available !== false)]
 
   // All host properties including pending/rejected (for admin use)
   const allHostPropertiesRaw = hostProperties
@@ -115,23 +197,69 @@ export function AppDataProvider({ children }) {
   }, [])
   const isWishlisted = useCallback((propertyId) => wishlist.includes(propertyId), [wishlist])
 
-  // Add notification
+  // Add notification (local + API attempt)
   const addNotification = useCallback((notification) => {
     const n = {
-      id: Date.now(),
+      id: Date.now() + '-' + Math.random().toString(36).substring(2, 9),
       timestamp: new Date().toISOString(),
       read: false,
       ...notification,
     }
     setNotifications(prev => [n, ...prev])
   }, [])
-  const markNotificationsRead = useCallback(() => {
+
+  const markNotificationsRead = useCallback(async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    try {
+      if (getToken()) await notificationsAPI.markAllRead()
+    } catch { /* fallback to local */ }
   }, [])
+
+  // Fetch notifications from API
+  const fetchNotifications = useCallback(async () => {
+    try {
+      if (!getToken()) return
+      const { data } = await notificationsAPI.getAll()
+      if (data?.success && Array.isArray(data.data)) {
+        setNotifications(data.data.map(n => ({
+          id: n.id,
+          type: n.type || 'info',
+          title: n.title || '',
+          message: n.message || n.body || '',
+          read: n.is_read || false,
+          timestamp: n.created_at || new Date().toISOString(),
+        })))
+      }
+    } catch { /* keep local */ }
+  }, [])
+
   const unreadCount = notifications.filter(n => !n.read).length
 
-  // Book a property
-  const createBooking = useCallback(({ propertyId, userId, userEmail, userName, checkIn, checkOut, guests, totalPrice }) => {
+  // ─── Bookings (API-first with localStorage fallback) ─────────────────────
+  const createBooking = useCallback(async ({ propertyId, userId, userEmail, userName, checkIn, checkOut, guests, totalPrice }) => {
+    // Try API first
+    if (getToken()) {
+      try {
+        const property = allProperties.find(p => p.id === propertyId)
+        const { data } = await bookingsAPI.create({
+          listing_id: propertyId,
+          check_in: checkIn,
+          check_out: checkOut,
+          guests,
+          booking_type: property?.instantBook ? 'instant' : 'request',
+        })
+        if (data?.booking_id || data?.success) {
+          // Refresh bookings from API
+          fetchGuestBookings(userId)
+          return { ok: true, booking: data }
+        }
+      } catch (err) {
+        console.error('[Booking] API create failed:', err.response?.data || err.message)
+        return { ok: false, error: err.response?.data?.message || err.message || 'Failed to create booking' }
+      }
+    }
+
+    // Fallback to localStorage
     const property = allProperties.find(p => p.id === propertyId)
     if (!property) return { ok: false, error: 'Property not found' }
 
@@ -149,41 +277,117 @@ export function AppDataProvider({ children }) {
       propertyTitle: property.title,
       propertyImage: property.image,
       propertyLocation: property.location,
-      userId,
-      userEmail,
-      userName,
-      checkIn,
-      checkOut,
-      guests,
-      totalPrice,
+      userId, userEmail, userName,
+      checkIn, checkOut, guests, totalPrice,
       pricePerNight: property.price,
       status: 'confirmed',
       createdAt: new Date().toISOString(),
       hostId: property.hostId,
       reviewed: false,
     }
-
     setBookings(prev => [booking, ...prev])
-
     addNotification({
       type: 'booking',
       title: 'Booking Confirmed! 🎉',
       message: `Your stay at "${property.title}" is confirmed for ${checkIn} → ${checkOut}.`,
       propertyId,
     })
-
     return { ok: true, booking }
   }, [bookings, allProperties, addNotification])
 
-  const cancelBooking = useCallback((bookingId) => {
+  const cancelBooking = useCallback(async (bookingId) => {
+    // Try API first
+    if (getToken()) {
+      try {
+        await bookingsAPI.cancel(bookingId, { reason: 'User cancelled' })
+      } catch { /* fallback */ }
+    }
     setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' } : b))
   }, [])
 
+  // Fetch guest bookings from API
+  const fetchGuestBookings = useCallback(async (userId) => {
+    if (!getToken()) return
+    try {
+      const { data } = await bookingsAPI.getGuestBookings()
+      if (data?.success && Array.isArray(data.data)) {
+        const apiBookings = data.data.map(b => ({
+          id: b.id || b.booking_id,
+          propertyId: b.listing_id || b.propertyId,
+          propertyTitle: b.listing_title || b.propertyTitle || '',
+          propertyImage: b.listing_photo || b.listing_image || b.propertyImage || '',
+          propertyLocation: b.listing_location || b.propertyLocation || '',
+          userId: b.guest_id || b.userId,
+          checkIn: b.check_in || b.checkIn,
+          checkOut: b.check_out || b.checkOut,
+          guests: b.guests || 1,
+          totalPrice: b.total_price || b.totalPrice || 0,
+          status: b.status ? b.status.toLowerCase() : 'confirmed',
+          paymentStatus: b.payment_status ? b.payment_status.toLowerCase() : 'unpaid',
+          createdAt: b.created_at || b.createdAt,
+          hostId: b.host_id || b.hostId,
+          reviewed: b.reviewed || false,
+          _fromAPI: true,
+        }))
+        setBookings(prev => {
+          // Keep bookings that belong to OTHER users, 
+          // but completely replace this guest's bookings with the fresh API data
+          const otherBookings = prev.filter(b => b.userId !== userId && !apiBookings.some(ab => ab.id === b.id))
+          return [...otherBookings, ...apiBookings]
+        })
+      }
+    } catch { /* keep local */ }
+  }, [])
+
+  const fetchHostBookings = useCallback(async (hostId) => {
+    if (!getToken()) return
+    try {
+      console.log('[AppData] 📅 Calling fetchHostBookings...')
+      const { data } = await bookingsAPI.getIncoming()
+      console.log('[AppData] 📅 fetchHostBookings response:', data)
+      if (data?.success && Array.isArray(data.data)) {
+        const apiBookings = data.data.map(b => ({
+          id: b.id || b.booking_id,
+          propertyId: b.listing_id || b.propertyId,
+          propertyTitle: b.listing_title || b.propertyTitle || '',
+          propertyImage: b.listing_photo || b.listing_image || b.propertyImage || '',
+          propertyLocation: b.listing_location || b.propertyLocation || '',
+          userId: b.guest_id || b.userId,
+          guestName: b.guest_name,
+          checkIn: b.check_in || b.checkIn,
+          checkOut: b.check_out || b.checkOut,
+          guests: b.guests || 1,
+          totalPrice: b.total_price || b.totalPrice || 0,
+          status: b.status ? b.status.toLowerCase() : 'confirmed',
+          paymentStatus: b.payment_status ? b.payment_status.toLowerCase() : 'unpaid',
+          createdAt: b.created_at || b.createdAt,
+          hostId: b.host_id || b.hostId,
+          reviewed: b.reviewed || false,
+          _fromAPI: true,
+        }))
+        console.log('[AppData] 📅 Mapped host bookings:', apiBookings)
+        setBookings(prev => {
+          // Keep bookings that belong to OTHER users (guests/other hosts), 
+          // but completely replace this host's bookings with the fresh API data
+          const otherBookings = prev.filter(b => b.hostId !== hostId && !apiBookings.some(ab => ab.id === b.id))
+          return [...otherBookings, ...apiBookings]
+        })
+      }
+    } catch (err) { console.error('[AppData] fetchHostBookings Error:', err) }
+  }, [])
+
   const getUserBookings = useCallback((userId) => {
+    console.log('[AppData] getUserBookings called with userId:', userId)
+    console.log('[AppData] bookings count:', bookings.length)
+    if (bookings.length > 0) {
+      console.log('[AppData] first booking userId:', bookings[0].userId)
+    }
     return bookings.filter(b => b.userId === userId)
   }, [bookings])
 
   const getHostBookings = useCallback((hostId) => {
+    console.log('[AppData] getHostBookings called with hostId:', hostId)
+    console.log('[AppData] Current context bookings:', bookings)
     return bookings.filter(b => b.hostId === hostId)
   }, [bookings])
 
@@ -215,15 +419,26 @@ export function AppDataProvider({ children }) {
     return { canReview: hasBooking && !alreadyReviewed, hasBooking, alreadyReviewed }
   }, [bookings, hasUserReviewedProperty])
 
-  const submitReview = useCallback(({ propertyId, userId, userName, avatar, rating, comment }) => {
+  const submitReview = useCallback(async ({ propertyId, userId, userName, avatar, rating, comment, bookingId }) => {
+    // Try API first
+    if (getToken() && bookingId) {
+      try {
+        const { data } = await reviewsAPI.submit({ booking_id: bookingId, rating, comment })
+        if (data?.success) {
+          // Refresh reviews
+          fetchPropertyReviews(propertyId)
+          return { ok: true, review: data.data }
+        }
+      } catch (err) {
+        console.warn('[Review] API submit failed:', err.response?.data?.message || err.message)
+      }
+    }
+    // Fallback to localStorage
     const newReview = {
       id: `rev_${propertyId}_${Date.now()}`,
-      propertyId,
-      userId,
-      userName,
+      propertyId, userId, userName,
       avatar: avatar || userName?.charAt(0)?.toUpperCase() || 'U',
-      rating,
-      comment,
+      rating, comment,
       date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
       createdAt: new Date().toISOString(),
     }
@@ -231,13 +446,36 @@ export function AppDataProvider({ children }) {
       ...prev,
       [propertyId]: [...(prev[propertyId] || []), newReview],
     }))
-    // Mark booking as reviewed
     setBookings(prev => prev.map(b =>
       b.propertyId === propertyId && b.userId === userId
         ? { ...b, reviewed: true }
         : b
     ))
     return { ok: true, review: newReview }
+  }, [])
+
+  // Fetch reviews for a property from API
+  const fetchPropertyReviews = useCallback(async (propertyId) => {
+    try {
+      const { data } = await reviewsAPI.getForListing(propertyId)
+      if (data?.success && Array.isArray(data.data)) {
+        setReviews(prev => ({
+          ...prev,
+          [propertyId]: data.data.map(r => ({
+            id: r.id,
+            propertyId,
+            userId: r.guest_id || r.userId,
+            userName: r.guest_name || r.userName || 'Guest',
+            avatar: (r.guest_name || 'G').charAt(0).toUpperCase(),
+            rating: r.rating,
+            comment: r.comment || '',
+            reply: r.reply || null,
+            date: new Date(r.created_at || Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            createdAt: r.created_at,
+          })),
+        }))
+      }
+    } catch { /* keep local */ }
   }, [])
 
   // ─── Admin: Delete a review ──────────────────────────────────────────────
@@ -305,20 +543,60 @@ export function AppDataProvider({ children }) {
     addAuditLog({ action: 'User Unsuspended', targetEmail: user?.email || userId, details: 'Account restored' })
   }, [adminUsers, addAuditLog])
 
-  // ─── Host CRUD + Approval Flow ──────────────────────────────────────────
-  const addHostProperty = useCallback((property, hostId, hostName) => {
+  // ─── Host CRUD + Approval Flow (API-first with fallback) ────────────────
+  const addHostProperty = useCallback(async (property, hostId, hostName) => {
+    // Try API: create a listing draft then update it
+    if (getToken()) {
+      try {
+        const { data: createData } = await listingsAPI.create()
+        if (createData?.success && (createData?.data?.id || createData?.data?.listing_id)) {
+          const listingId = createData.data.id || createData.data.listing_id
+          // Update with property details
+          await listingsAPI.update(listingId, {
+            title: property.title,
+            description: property.description,
+            property_type: property.category?.toUpperCase() || 'HOUSE',
+            address: {
+              street: property.location || '',
+              city: property.city || property.location?.split(',')[0]?.trim() || '',
+              district: property.district || '',
+              zip_code: property.zipCode || '',
+              latitude: property.latitude || null,
+              longitude: property.longitude || null,
+              legal_doc_url: property.legalDocUrl || '',
+            },
+            price_per_night: property.price || 0,
+            amenities: property.amenities || [],
+            floor_plan: {
+              bedrooms: property.bedrooms || 1,
+              bathrooms: property.bathrooms || 1,
+              guests: property.maxGuests || 4,
+            },
+            photos: property.images?.map(url => ({ url })) || [],
+          })
+          // Publish
+          // try { await listingsAPI.publish(listingId) } catch { /* draft mode */ }
+
+          addNotification({
+            type: 'listing',
+            title: 'Property Submitted! 🏠',
+            message: `"${property.title}" has been submitted. You'll be notified once reviewed.`,
+          })
+          return { ok: true, property: { id: listingId, ...property } }
+        }
+      } catch (err) {
+        console.warn('[Host] API create failed, using local:', err.message)
+      }
+    }
+    // Fallback to localStorage
     const newProp = {
       ...property,
       id: `hp_${Date.now()}`,
-      hostId,
-      hostName,
+      hostId, hostName,
       hostAvatar: hostName?.charAt(0)?.toUpperCase(),
-      rating: 0,
-      reviews: 0,
-      views: 0,
-      bookings: 0,
+      rating: 0, reviews: 0, views: 0, bookings: 0,
       available: true,
-      approvalStatus: 'pending', // 'pending' | 'approved' | 'rejected'
+      approvalStatus: 'pending',
       rejectionReason: null,
       createdAt: new Date().toISOString(),
     }
@@ -331,36 +609,82 @@ export function AppDataProvider({ children }) {
     return { ok: true, property: newProp }
   }, [addNotification])
 
-  const updateHostProperty = useCallback((propertyId, updates) => {
+  const updateHostProperty = useCallback(async (propertyId, updates) => {
+    if (getToken()) {
+      try {
+        await listingsAPI.update(propertyId, updates)
+      } catch { /* fallback */ }
+    }
     setHostProperties(prev => prev.map(p => p.id === propertyId ? { ...p, ...updates } : p))
     return { ok: true }
   }, [])
 
-  const deleteHostProperty = useCallback((propertyId) => {
+  const deleteHostProperty = useCallback(async (propertyId) => {
+    if (typeof propertyId === 'string' && propertyId.startsWith('hp_')) {
+      setHostProperties(prev => prev.filter(p => p.id !== propertyId))
+      return
+    }
+    if (getToken()) {
+      try {
+        await listingsAPI.delete(propertyId)
+      } catch { /* fallback */ }
+    }
     setHostProperties(prev => prev.filter(p => p.id !== propertyId))
   }, [])
 
   const getHostProperties = useCallback((hostId) => {
-    return hostProperties.filter(p => p.hostId === hostId)
+    return hostProperties
   }, [hostProperties])
 
-  // ─── Admin Actions ───────────────────────────────────────────────────────
-  const adminApproveProperty = useCallback((propertyId) => {
-    let propertyTitle = ''
-    setHostProperties(prev => prev.map(p => {
-      if (p.id === propertyId) {
-        propertyTitle = p.title
-        return { ...p, approvalStatus: 'approved', rejectionReason: null }
+  // Fetch host listings from API
+  const fetchHostListings = useCallback(async () => {
+    if (!getToken()) return
+    try {
+      console.log('[AppData] 🏠 Calling fetchHostListings...')
+      const { data } = await listingsAPI.getMyListings()
+      console.log('[AppData] 🏠 fetchHostListings response:', data)
+      if (data?.success && data?.data?.listings) {
+        const transformed = data.data.listings.map(l => transformAPIListing(l))
+        setHostProperties(transformed)
       }
-      return p
-    }))
-    // Add notification for the vendor
-    addNotification({
-      type: 'approval',
-      title: 'Property Approved ✅',
-      message: `Your property "${propertyTitle}" has been approved and is now visible to guests!`,
-      propertyId,
-    })
+    } catch { /* keep local */ }
+  }, [transformAPIListing])
+
+  const fetchAdminListings = useCallback(async () => {
+    if (!getToken()) return
+    try {
+      const { data } = await listingsAPI.getListingsAdmin()
+      if (data?.success && Array.isArray(data.data)) {
+        const transformed = data.data.map(l => transformAPIListing(l))
+        setHostProperties(transformed)
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin listings:', err)
+    }
+  }, [transformAPIListing])
+  const adminApproveProperty = useCallback(async (propertyId) => {
+    let propertyTitle = ''
+    try {
+      // Call API to publish the listing
+      await adminAPI.approveListing(propertyId)
+      
+      setHostProperties(prev => prev.map(p => {
+        if (p.id === propertyId) {
+          propertyTitle = p.title
+          return { ...p, approvalStatus: 'approved', rejectionReason: null }
+        }
+        return p
+      }))
+      // Add notification for the vendor
+      addNotification({
+        type: 'approval',
+        title: 'Property Approved ✅',
+        message: `Your property "${propertyTitle}" has been approved and is now visible to guests!`,
+        propertyId,
+      })
+    } catch (err) {
+      console.error('Failed to approve property:', err)
+    }
   }, [addNotification])
 
   const adminRejectProperty = useCallback((propertyId, reason) => {
@@ -419,7 +743,7 @@ export function AppDataProvider({ children }) {
     const props = getHostProperties(hostId)
     const hBookings = getHostBookings(hostId)
     const confirmedBookings = hBookings.filter(b => b.status === 'confirmed')
-    const totalEarnings = confirmedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+    const totalEarnings = confirmedBookings.reduce((sum, b) => sum + parseFloat(b.totalPrice || 0), 0)
     const totalListings = props.length
     const totalBookings = confirmedBookings.length
 
@@ -433,7 +757,7 @@ export function AppDataProvider({ children }) {
           const bd = new Date(b.createdAt)
           return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
         })
-        .reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+        .reduce((sum, b) => sum + parseFloat(b.totalPrice || 0), 0)
       const count = confirmedBookings.filter(b => {
         const bd = new Date(b.createdAt)
         return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
@@ -468,7 +792,7 @@ export function AppDataProvider({ children }) {
     const totalBookingsCount = bookings.length
     const totalRevenue = bookings
       .filter(b => b.status === 'confirmed')
-      .reduce((sum, b) => sum + (b.totalPrice || 0), 0)
+      .reduce((sum, b) => sum + parseFloat(b.totalPrice || 0), 0)
     const totalReviews = Object.values(reviews).reduce((sum, arr) => sum + (arr?.length || 0), 0)
     return { totalUsers, totalVendors, pendingProperties, approvedProperties, rejectedProperties, totalBookingsCount, totalRevenue, totalReviews }
   }, [adminUsers, hostProperties, bookings, reviews])
@@ -480,6 +804,9 @@ export function AppDataProvider({ children }) {
       allHostPropertiesRaw,
       filteredProperties,
       trackView,
+      // API state
+      fetchListingsFromAPI, listingsLoading, usingAPI,
+      fetchGuestBookings, fetchHostBookings, fetchNotifications, fetchHostListings, fetchAdminListings, fetchPropertyReviews,
       // Search / filter
       searchQuery, setSearchQuery,
       activeCategory, setActiveCategory,
