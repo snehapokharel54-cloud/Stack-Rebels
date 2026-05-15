@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { FiBell, FiArrowLeft, FiCheck } from 'react-icons/fi'
@@ -23,8 +24,12 @@ function timeAgo(timestamp) {
 }
 
 export default function NotificationsPage() {
-  const { notifications, markNotificationsRead } = useAppData()
+  const { notifications, markNotificationsRead, fetchNotifications } = useAppData()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [fetchNotifications])
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: "'Open Sans', sans-serif" }}>
