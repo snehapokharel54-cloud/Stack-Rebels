@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { FiHome, FiUsers, FiShield, FiActivity, FiLogOut, FiCheck, FiX, FiEye, FiTrash2, FiMenu, FiAlertCircle, FiFileText, FiRefreshCw, FiMessageSquare, FiStar, FiCreditCard, FiLock, FiClock, FiAward, FiMinus, FiPlus } from 'react-icons/fi'
@@ -6,12 +6,18 @@ import { FaStar } from 'react-icons/fa'
 import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { useToast } from '../context/ToastContext'
+import { adminAPI as api, messagingAPI } from '../services/api'
+import CryptoJS from 'crypto-js'
+import { io } from 'socket.io-client'
+
+const SECRET_KEY = 'grihastha_default_secret_key'
 
 const NAV = [
   { id: 'overview', label: 'Overview', icon: FiActivity },
   { id: 'users', label: 'User Management', icon: FiUsers },
   { id: 'kyc', label: 'KYC Queue', icon: FiShield },
   { id: 'properties', label: 'Property Verification', icon: FiHome },
+  { id: 'disputes', label: 'Disputes', icon: FiAlertCircle },
   { id: 'reviews', label: 'Reviews', icon: FiMessageSquare },
   { id: 'audit', label: 'Audit Log', icon: FiClock },
 ]
@@ -86,26 +92,28 @@ function OverviewSection({ stats }) {
 }
 
 function UserManagementSection() {
-  const { adminGetAllUsers, adminRemoveUser, adminRestoreUser } = useAppData()
-  const { accounts } = useAuth()
   const { showToast } = useToast()
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
   const [removeModal, setRemoveModal] = useState(null)
   const [reason, setReason] = useState('')
 
-  const seedUsers = adminGetAllUsers()
-  // Merge with real accounts
-  const realUsers = accounts.map(acc => ({
-    id: acc.email,
-    name: acc.name,
-    email: acc.email,
-    role: acc.role,
-    createdAt: acc.createdAt,
-    status: 'active',
-  }))
-  const allUsers = [
-    ...seedUsers,
-    ...realUsers.filter(ru => !seedUsers.some(su => su.email === ru.email)),
-  ]
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const { data } = await api.getUsers()
+        if (data.success) {
+          setUsers(data.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch users:', err)
+        showToast('Failed to fetch users.', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchUsers()
+  }, [showToast])
 
   const handleRemove = (user) => { setRemoveModal(user); setReason('') }
   const confirmRemove = () => {
@@ -119,7 +127,7 @@ function UserManagementSection() {
     <div>
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 900, fontSize: 24, color: '#0f172a', margin: 0, marginBottom: 4 }}>User Management</h2>
-        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>{allUsers.length} registered account{allUsers.length !== 1 ? 's' : ''}</p>
+        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>{users.length} registered account{users.length !== 1 ? 's' : ''}</p>
       </div>
       <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #f0f4ff', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -132,27 +140,34 @@ function UserManagementSection() {
               </tr>
             </thead>
             <tbody>
-              {allUsers.map((u, i) => (
-                <motion.tr key={u.id || u.email} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                  style={{ borderBottom: '1px solid #f8fafc' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+               {users.map((u, i) => {
+                  const userName = u.full_name || u.name || 'Unknown'
+                  const userEmail = u.email
+                  const userRole = u.role || (u.is_host ? 'vendor' : 'user')
+                  const userJoined = u.created_at || u.createdAt || 'N/A'
+                  const userStatus = u.status || 'active'
+
+                  return (
+                    <motion.tr key={u.id || u.email} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                      style={{ borderBottom: '1px solid #f8fafc' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#093880,#1a56c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                        {u.name?.charAt(0)?.toUpperCase()}
+                        {userName.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', marginBottom: 2 }}>{u.name}</p>
-                        <p style={{ fontSize: 12, color: '#94a3b8' }}>{u.email}</p>
+                        <p style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', marginBottom: 2 }}>{userName}</p>
+                        <p style={{ fontSize: 12, color: '#94a3b8' }}>{userEmail}</p>
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '14px 20px' }}><StatusBadge status={u.role} /></td>
-                  <td style={{ padding: '14px 20px', fontSize: 13, color: '#64748b' }}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
-                  <td style={{ padding: '14px 20px' }}><StatusBadge status={u.status || 'active'} /></td>
+                  <td style={{ padding: '14px 20px' }}><StatusBadge status={userRole} /></td>
+                  <td style={{ padding: '14px 20px', fontSize: 13, color: '#64748b' }}>{userJoined !== 'N/A' ? new Date(userJoined).toLocaleDateString() : '—'}</td>
+                  <td style={{ padding: '14px 20px' }}><StatusBadge status={userStatus} /></td>
                   <td style={{ padding: '14px 20px' }}>
-                    {u.status === 'removed' ? (
+                    {userStatus === 'removed' ? (
                       <button onClick={() => { adminRestoreUser(u.id); showToast(`User "${u.name}" restored.`, 'success') }}
                         style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f0fdf4', color: '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                         <FiRefreshCw size={11} /> Restore
@@ -165,7 +180,7 @@ function UserManagementSection() {
                     )}
                   </td>
                 </motion.tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -197,12 +212,16 @@ function UserManagementSection() {
 }
 
 function PropertyVerificationSection() {
-  const { allHostPropertiesRaw, adminApproveProperty, adminRejectProperty } = useAppData()
+  const { allHostPropertiesRaw, adminApproveProperty, adminRejectProperty, fetchAdminListings } = useAppData()
   const { showToast } = useToast()
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [docPreview, setDocPreview] = useState(null)
   const [filter, setFilter] = useState('all')
+
+  useEffect(() => {
+    fetchAdminListings()
+  }, [fetchAdminListings])
 
   const filtered = filter === 'all' ? allHostPropertiesRaw : allHostPropertiesRaw.filter(p => p.approvalStatus === filter)
 
@@ -331,10 +350,10 @@ function PropertyVerificationSection() {
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Legal Document</p>
                 {docPreview.legalDocName ? (
-                  <div className="flex items-center gap-2 text-sm text-blue-600 font-semibold">
+                  <a href={docPreview.legalDocUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 font-semibold hover:underline">
                     <FiFileText size={16} /> {docPreview.legalDocName}
-                    <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full ml-auto">Uploaded ✓</span>
-                  </div>
+                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full ml-auto">View Document ↗</span>
+                  </a>
                 ) : (
                   <p className="text-sm text-red-500">No document uploaded</p>
                 )}
@@ -349,23 +368,29 @@ function PropertyVerificationSection() {
 
 // ─── Admin Reviews Management ────────────────────────────────────────────────
 function AdminReviewsSection() {
-  const { reviews, allProperties, allHostPropertiesRaw } = useAppData()
   const { showToast } = useToast()
+  const [allReviews, setAllReviews] = useState([])
+  const [loading, setLoading] = useState(true)
   const [deleteModal, setDeleteModal] = useState(null)
   const [filterProp, setFilterProp] = useState('all')
   const [ratingFilter, setRatingFilter] = useState('all')
 
-  // Build flat list of all reviews with property info
-  const allProps = [...allProperties, ...allHostPropertiesRaw]
-  const allReviews = Object.entries(reviews).flatMap(([propId, propReviews]) => {
-    const prop = allProps.find(p => String(p.id) === String(propId))
-    return (propReviews || []).map(r => ({
-      ...r,
-      propertyTitle: prop?.title || `Property ${propId}`,
-      propertyId: propId,
-      propertyImage: prop?.image,
-    }))
-  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const { data } = await api.getReviews()
+        if (data.success) {
+          setAllReviews(data.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err)
+        showToast('Failed to fetch reviews.', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReviews()
+  }, [showToast])
 
   const totalAvg = allReviews.length > 0
     ? (allReviews.reduce((s, r) => s + r.rating, 0) / allReviews.length).toFixed(1)
@@ -377,14 +402,20 @@ function AdminReviewsSection() {
     return propMatch && ratingMatch
   })
 
-  // Get context to delete reviews
-  const { setReviewsAdmin } = useAppData()
-
   const handleDelete = (review) => setDeleteModal(review)
-  const confirmDelete = () => {
-    setReviewsAdmin(deleteModal.propertyId, deleteModal.id)
-    showToast('Review deleted successfully.', 'success')
-    setDeleteModal(null)
+  const confirmDelete = async () => {
+    try {
+      const { data } = await api.deleteReview(deleteModal.id)
+      if (data.success) {
+        showToast('Review deleted successfully.', 'success')
+        setDeleteModal(null)
+        const response = await api.getReviews()
+        if (response.data.success) setAllReviews(response.data.data)
+      }
+    } catch (err) {
+      console.error('Failed to delete review:', err)
+      showToast('Failed to delete review.', 'error')
+    }
   }
 
   // Unique property list for filter
@@ -499,22 +530,95 @@ function AdminReviewsSection() {
 
 // ─── KYC Queue ───────────────────────────────────────────────────────────────
 function KYCQueueSection() {
-  const { kycRecords, adminApproveKYC, adminRejectKYC, accounts } = { ...useAppData(), accounts: useAuth().accounts }
   const { showToast } = useToast()
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [filter, setFilter] = useState('all')
   const [docModal, setDocModal] = useState(null)
 
-  const records = Object.entries(kycRecords || {}).map(([email, data]) => ({ email, ...data }))
+  useEffect(() => {
+    const fetchKYC = async () => {
+      try {
+        const { data } = await api.getPendingKYC()
+        if (data.success) {
+          const mapped = data.data.map(rec => ({
+            ...rec,
+            status: rec.status === 'under_review' ? 'pending' : rec.status,
+            email: rec.host_email,
+            name: rec.host_name,
+            submittedAt: rec.created_at,
+            idFrontName: rec.documents?.front ? "ID Front" : null,
+            idBackName: rec.documents?.back ? "ID Back" : null
+          }))
+          setRecords(mapped)
+        }
+      } catch (err) {
+        console.error('Failed to fetch KYC records:', err)
+        showToast('Failed to fetch KYC records.', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchKYC()
+  }, [showToast])
+
   const filtered = filter === 'all' ? records : records.filter(r => r.status === filter)
 
-  const handleApprove = (email) => { adminApproveKYC(email); showToast(`KYC approved for ${email}`, 'success') }
-  const handleReject = () => {
+  const handleApprove = async (userId) => {
+    try {
+      const { data } = await api.approveKYC(userId)
+      if (data.success) {
+        showToast('KYC approved successfully!', 'success')
+        // Refresh records
+        const response = await api.getPendingKYC()
+        if (response.data.success) {
+          const mapped = response.data.data.map(rec => ({
+            ...rec,
+            status: rec.status === 'under_review' ? 'pending' : rec.status,
+            email: rec.host_email,
+            name: rec.host_name,
+            submittedAt: rec.created_at,
+            idFrontName: rec.documents?.front ? "ID Front" : null,
+            idBackName: rec.documents?.back ? "ID Back" : null
+          }))
+          setRecords(mapped)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to approve KYC:', err)
+      showToast('Failed to approve KYC.', 'error')
+    }
+  }
+
+  const handleReject = async () => {
     if (!rejectReason.trim()) { showToast('Please enter a reason.', 'warning'); return }
-    adminRejectKYC(rejectModal, rejectReason)
-    showToast('KYC rejected.', 'error')
-    setRejectModal(null); setRejectReason('')
+    try {
+      const { data } = await api.rejectKYC(rejectModal, { reason: rejectReason })
+      if (data.success) {
+        showToast('KYC rejected.', 'error')
+        setRejectModal(null)
+        setRejectReason('')
+        // Refresh records
+        const response = await api.getPendingKYC()
+        if (response.data.success) {
+          const mapped = response.data.data.map(rec => ({
+            ...rec,
+            status: rec.status === 'under_review' ? 'pending' : rec.status,
+            email: rec.host_email,
+            name: rec.host_name,
+            submittedAt: rec.created_at,
+            idFrontName: rec.documents?.front ? "ID Front" : null,
+            idBackName: rec.documents?.back ? "ID Back" : null
+          }))
+          setRecords(mapped)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to reject KYC:', err)
+      showToast('Failed to reject KYC.', 'error')
+    }
   }
 
   const statusColor = { pending: '#eab308', verified: '#10b981', rejected: '#ef4444', not_submitted: '#64748b' }
@@ -599,12 +703,12 @@ function KYCQueueSection() {
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: '1.5px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   <FiEye size={14} /> View Documents
                 </motion.button>
-                {rec.status === 'pending' && (<>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleApprove(rec.email)}
+                {(rec.status === 'pending' || rec.status === 'under_review') && (<>
+                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleApprove(rec.id)}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#10b981', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 10px rgba(16,185,129,0.3)' }}>
                     <FiCheck size={14} /> Approve
                   </motion.button>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setRejectModal(rec.email); setRejectReason('') }}
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setRejectModal(rec.id); setRejectReason('') }}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 10, border: '1.5px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     <FiX size={14} /> Reject
                   </motion.button>
@@ -654,29 +758,258 @@ function KYCQueueSection() {
                 <div>
                   <h3 style={{ fontFamily: 'Poppins,sans-serif', fontWeight: 800, fontSize: 17, color: '#0f172a', margin: 0 }}>KYC Documents</h3>
                   <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>{docModal.email}</p>
+                  <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>Document: <strong style={{ color: '#0f172a', textTransform: 'capitalize' }}>{docModal.ownership_type?.replace('_', ' ') || 'National ID'}</strong></p>
                 </div>
                 <button onClick={() => setDocModal(null)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <FiX size={16} style={{ color: '#64748b' }} />
                 </button>
               </div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 14 }}>National ID Card</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 14 }}>{docModal.ownership_type?.replace('_', ' ') || 'National ID'} Card</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {[{name: docModal.idFrontName, label: 'Front Side'}, {name: docModal.idBackName, label: 'Back Side'}].map(doc => (
-                  <div key={doc.label} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 14, border: '1.5px solid #e2e8f0', background: doc.name ? '#fafbff' : '#f8fafc' }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: doc.name ? '#eff6ff' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <FiFileText size={20} style={{ color: doc.name ? '#1d4ed8' : '#cbd5e1' }} />
+                {[{key: 'front', label: 'Front Side'}, {key: 'back', label: 'Back Side'}].map(doc => {
+                  const fileData = docModal.documents?.[doc.key];
+                  return (
+                    <div key={doc.label} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '16px 18px', borderRadius: 14, border: '1.5px solid #e2e8f0', background: fileData ? '#fafbff' : '#f8fafc' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 12, background: fileData ? '#eff6ff' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <FiFileText size={20} style={{ color: fileData ? '#1d4ed8' : '#cbd5e1' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', margin: 0 }}>{doc.label}</p>
+                          <p style={{ fontSize: 12, color: fileData ? '#64748b' : '#94a3b8', margin: '3px 0 0' }}>{fileData ? 'Uploaded' : 'Not uploaded'}</p>
+                        </div>
+                        {fileData && <span style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '3px 10px', borderRadius: 999, border: '1px solid #86efac' }}>✓ Uploaded</span>}
+                      </div>
+                      {fileData?.url && (
+                        <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#000' }}>
+                          <img src={fileData.url} alt={doc.label} style={{ width: '100%', maxHeight: 300, objectFit: 'contain' }} />
+                        </div>
+                      )}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', margin: 0 }}>{doc.label}</p>
-                      <p style={{ fontSize: 12, color: doc.name ? '#64748b' : '#94a3b8', margin: '3px 0 0', fontStyle: doc.name ? 'normal' : 'italic' }}>{doc.name || 'Not uploaded'}</p>
-                    </div>
-                    {doc.name && <span style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '3px 10px', borderRadius: 999, border: '1px solid #86efac' }}>✓ Uploaded</span>}
+                  )
+                })}
+              </div>
+              <div style={{ marginTop: 20, padding: '12px 16px', borderRadius: 12, background: '#e0f2fe', border: '1px solid #bae6fd' }}>
+                <p style={{ fontSize: 12, color: '#0369a1', margin: 0 }}>ℹ Documents are securely stored in Cloudinary and previewed above.</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+// ─── Disputes Section ────────────────────────────────────────────────────────
+function DisputesSection() {
+  const { showToast } = useToast()
+  const [disputes, setDisputes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
+  
+  const [selectedDispute, setSelectedDispute] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+
+  useEffect(() => {
+    const fetchDisputes = async () => {
+      try {
+        const { data } = await api.getDisputes()
+        if (data.success) {
+          setDisputes(data.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch disputes:', err)
+        showToast('Failed to fetch disputes.', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDisputes()
+  }, [showToast])
+
+  const [socket, setSocket] = useState(null)
+
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+    const s = io(API_BASE_URL)
+    setSocket(s)
+
+    return () => {
+      s.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedDispute || !socket) return
+
+    socket.emit('join_conversation', selectedDispute.conversation_id)
+
+    const handleReceiveMessage = (data) => {
+      try {
+        const bytes = CryptoJS.AES.decrypt(data.content, SECRET_KEY)
+        const decryptedText = bytes.toString(CryptoJS.enc.Utf8)
+        const decryptedMsg = { ...data, content: decryptedText || data.content }
+        setMessages(prev => [...prev, decryptedMsg])
+      } catch (e) {
+        setMessages(prev => [...prev, data])
+      }
+    }
+
+    socket.on('receive_message', handleReceiveMessage)
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage)
+    }
+  }, [selectedDispute, socket])
+
+  const openChat = async (d) => {
+    setSelectedDispute(d)
+    try {
+      const { data } = await messagingAPI.getMessages(d.conversation_id)
+      if (data.success) {
+        const decryptedMessages = data.data.map(m => {
+          try {
+            const bytes = CryptoJS.AES.decrypt(m.content, SECRET_KEY)
+            const decryptedText = bytes.toString(CryptoJS.enc.Utf8)
+            return { ...m, content: decryptedText || m.content }
+          } catch (e) {
+            return m
+          }
+        })
+        setMessages(decryptedMessages)
+      }
+    } catch (err) {
+      console.error('Failed to fetch messages:', err.response?.data || err.message)
+      showToast('Failed to fetch messages.', 'error')
+    }
+  }
+
+  const handleSend = async () => {
+    if (!newMessage.trim()) return
+    setSending(true)
+    const encryptedText = CryptoJS.AES.encrypt(newMessage.trim(), SECRET_KEY).toString()
+    try {
+      const { data } = await messagingAPI.sendMessage(selectedDispute.conversation_id, { text: encryptedText })
+      if (data.success) {
+        setMessages([...messages, { ...data.data, content: newMessage.trim() }])
+        setNewMessage('')
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err.response?.data || err.message)
+      showToast('Failed to send message.', 'error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const filtered = filter === 'all' ? disputes : disputes.filter(d => d.status === filter)
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 900, fontSize: 24, color: '#0f172a', margin: 0, marginBottom: 4 }}>Disputes Management</h2>
+        <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>{disputes.length} active dispute{disputes.length !== 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {['all','open','resolved','escalated'].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            style={{ padding: '6px 16px', borderRadius: 999, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.18s', background: filter === f ? 'linear-gradient(135deg,#093880,#1a56c4)' : '#f1f5f9', color: filter === f ? '#fff' : '#64748b' }}>
+            {f} ({f === 'all' ? disputes.length : disputes.filter(d => d.status === f).length})
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #f0f4ff', boxShadow: '0 2px 16px rgba(0,0,0,0.06)', padding: 20 }}>
+        {loading ? (
+          <p style={{ textAlign: 'center', color: '#64748b' }}>Loading disputes...</p>
+        ) : filtered.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#64748b' }}>No disputes found.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {filtered.map(d => (
+              <div key={d.dispute_id} onClick={() => openChat(d)} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#0f172a' }}>{d.guest_name}</h3>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: d.status === 'OPEN' ? '#fee2e2' : '#dcfce7', color: d.status === 'OPEN' ? '#ef4444' : '#15803d', textTransform: 'uppercase' }}>
+                    {d.status}
+                  </span>
+                </div>
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 8px 0' }}>{d.reason}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#94a3b8' }}>
+                  <span>{d.guest_email}</span>
+                  <span>{d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Chat Modal */}
+      <AnimatePresence>
+        {selectedDispute && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 600, width: '100%', height: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+              
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontFamily: 'Poppins, sans-serif', fontWeight: 800, fontSize: 18, color: '#0f172a', margin: 0 }}>Ticket Chat</h3>
+                  <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>With {selectedDispute.guest_name} ({selectedDispute.guest_email})</p>
+                </div>
+                <button onClick={() => setSelectedDispute(null)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1.5px solid #e5e7eb', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <FiX size={16} style={{ color: '#64748b' }} />
+                </button>
+              </div>
+
+              {/* Messages */}
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16, border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, background: '#f8fafc' }}>
+                {messages.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No messages yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <AnimatePresence initial={false}>
+                      {messages.map(m => {
+                        const isMe = !!m.sender_admin_id
+                        return (
+                          <motion.div key={m.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                            <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: 16, fontSize: 13, background: isMe ? '#093880' : '#fff', color: isMe ? '#fff' : '#374151', border: isMe ? 'none' : '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                              <p style={{ margin: 0 }}>{m.content}</p>
+                              <span style={{ fontSize: 10, display: 'block', marginTop: 4, textAlign: 'right', color: isMe ? 'rgba(255,255,255,0.7)' : '#94a3b8' }}>
+                                {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </AnimatePresence>
                   </div>
-                ))}
+                )}
               </div>
-              <div style={{ marginTop: 20, padding: '12px 16px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                <p style={{ fontSize: 12, color: '#92400e', margin: 0 }}>⚠ Document images are stored locally and cannot be previewed in this demo. In production, files would be uploaded to secure storage.</p>
+
+              {/* Input */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
+                  placeholder="Type your reply..."
+                  style={{ flex: 1, border: '1.5px solid #e5e7eb', borderRadius: 12, padding: '12px 14px', fontSize: 13, outline: 'none', fontFamily: 'Open Sans, sans-serif' }} />
+                <button onClick={handleSend} disabled={sending}
+                  style={{ padding: '0 20px', borderRadius: 12, border: 'none', background: '#093880', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: sending ? 0.7 : 1 }}>
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
               </div>
+
             </motion.div>
           </motion.div>
         )}
@@ -913,11 +1246,46 @@ function AuditLogSection() {
 
 export default function AdminDashboard() {
   const { logout } = useAuth()
-  const { getAdminStats } = useAppData()
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const [section, setSection] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const stats = getAdminStats()
+  
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalVendors: 0,
+    pendingProperties: 0,
+    totalBookingsCount: 0,
+    totalReviews: 0,
+    approvedProperties: 0,
+    rejectedProperties: 0
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await api.getDashboard()
+        if (data.success) {
+          setStats({
+            totalUsers: data.data.total_users || 0,
+            totalVendors: data.data.total_hosts || 0,
+            pendingProperties: data.data.pending_kyc || 0,
+            totalBookingsCount: 0,
+            totalReviews: 0,
+            approvedProperties: data.data.published_listings || 0,
+            rejectedProperties: 0
+          })
+        }
+      } catch (err) {
+        console.error('Failed to fetch admin stats:', err)
+        showToast('Failed to fetch dashboard stats.', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStats()
+  }, [showToast])
 
   const handleLogout = () => { logout(); navigate('/') }
 
@@ -927,6 +1295,7 @@ export default function AdminDashboard() {
       case 'users': return <UserManagementSection />
       case 'kyc': return <KYCQueueSection />
       case 'properties': return <PropertyVerificationSection />
+      case 'disputes': return <DisputesSection />
       case 'reviews': return <AdminReviewsSection />
       case 'audit': return <AuditLogSection />
       default: return null
