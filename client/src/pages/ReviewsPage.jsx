@@ -145,7 +145,7 @@ export function ReviewForm({ propertyId, onSuccess, compact = false }) {
 
   if (!user || user.role === 'vendor' || user.role === 'admin') return null
 
-  const { hasBooking, alreadyReviewed } = canUserReview(propertyId, user.email)
+  const { hasBooking, alreadyReviewed } = canUserReview(propertyId, user.id)
 
   if (alreadyReviewed || submitted) {
     return (
@@ -180,7 +180,7 @@ export function ReviewForm({ propertyId, onSuccess, compact = false }) {
     if (!comment.trim()) { showToast('Please write a comment.', 'warning'); return }
     setSubmitting(true)
     await new Promise(r => setTimeout(r, 800))
-    submitReview({ propertyId, userId: user.email, userName: user.name, avatar: user.avatar, rating, comment })
+    submitReview({ propertyId, userId: user.id, userName: user.name, avatar: user.avatar, rating, comment })
     showToast('Review submitted! Thank you 🌟', 'success')
     setRating(0); setComment(''); setSubmitted(true)
     setSubmitting(false)
