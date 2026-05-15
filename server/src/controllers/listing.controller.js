@@ -48,6 +48,7 @@ export const updateListing = async (req, res) => {
       amenities,
       price_per_night,
       cleaning_fee,
+      photos,
     } = req.body;
 
     const result = await query(
@@ -60,6 +61,7 @@ export const updateListing = async (req, res) => {
          amenities = COALESCE($8::jsonb, amenities),
          price_per_night = COALESCE($9, price_per_night),
          cleaning_fee = COALESCE($10, cleaning_fee),
+         photos = COALESCE($11::jsonb, photos),
          updated_at = NOW()
        WHERE id = $1 AND host_id = $2
        RETURNING *`,
@@ -74,6 +76,7 @@ export const updateListing = async (req, res) => {
         amenities ? JSON.stringify(amenities) : null,
         price_per_night,
         cleaning_fee,
+        photos ? JSON.stringify(photos) : null,
       ],
     );
 
