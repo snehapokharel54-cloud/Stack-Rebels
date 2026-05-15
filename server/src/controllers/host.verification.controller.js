@@ -1,4 +1,5 @@
 import { query } from "../config/db.js";
+import { uploadImage } from "../config/cloudinary.js";
 
 // POST /v1/host/property-verification/:listingId
 export const submitPropertyVerification = async (req, res) => {
@@ -15,61 +16,98 @@ export const submitPropertyVerification = async (req, res) => {
       notes,
     } = req.body;
 
-    // Verify ownership
-    const ownerCheck = await query(
-      "SELECT id FROM listings WHERE id = $1 AND host_id = $2",
-      [listingId, hostId],
-    );
-    if (ownerCheck.rows.length === 0)
-      return res
-        .status(403)
-        .json({ success: false, message: "Unauthorized or listing not found" });
+    // Verify ownership if listingId is provided
+    if (listingId) {
+      const ownerCheck = await query(
+        "SELECT id FROM listings WHERE id = $1 AND host_id = $2",
+        [listingId, hostId],
+      );
+      if (ownerCheck.rows.length === 0)
+        return res
+          .status(403)
+          .json({ success: false, message: "Unauthorized or listing not found" });
+    }
 
-    // Assuming files are uploaded to Cloudinary via middleware and URLs are attached to req.files
-    // For this implementation, we simulate the URLs using file original names
+    // Upload files to Cloudinary
     const docUrls = {};
     if (req.files) {
-      if (Array.isArray(req.files)) {
-        req.files.forEach((f) => {
+      const filesArray = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+      
+      for (const f of filesArray) {
+        try {
+          const result = await uploadImage(f.buffer, { folder: "kyc_documents" });
           docUrls[f.fieldname] = {
-            url: `https://dummy/url/${f.originalname}`,
+            url: result.secure_url,
             status: "submitted",
           };
-        });
-      } else {
-        Object.keys(req.files).forEach((key) => {
-          docUrls[key] = {
-            url: `https://dummy/url/${req.files[key][0].originalname}`,
-            status: "submitted",
-          };
-        });
+        } catch (uploadErr) {
+          console.error(`Failed to upload ${f.fieldname}:`, uploadErr);
+          return res.status(500).json({ success: false, message: `Failed to upload ${f.fieldname}` });
+        }
       }
     }
 
     const documentsJSON = JSON.stringify(docUrls);
 
-    const result = await query(
-      `INSERT INTO kyc_documents (
-        listing_id, host_id, ownership_type, ward_number, municipality, province, district, property_reg_number, 
-        notes, documents, status, estimated_review_by
-       ) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'under_review', NOW() + INTERVAL '3 days')
-       ON CONFLICT (listing_id) DO UPDATE 
-       SET documents = $10, status = 'under_review', updated_at = NOW()
-       RETURNING id as verification_id, status, created_at as submitted_at, estimated_review_by`,
-      [
-        listingId,
-        hostId,
-        ownership_type,
-        ward_number,
-        municipality,
-        province,
-        district,
-        property_reg_number,
-        notes,
-        documentsJSON,
-      ],
-    );
+    let result;
+    if (listingId) {
+      result = await query(
+        `INSERT INTO kyc_documents (
+          listing_id, host_id, user_id, ownership_type, ward_number, municipality, province, district, property_reg_number, 
+          notes, documents, status, estimated_review_by, document_url
+         ) 
+         VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'under_review', NOW() + INTERVAL '3 days', '')
+         ON CONFLICT (listing_id) DO UPDATE 
+         SET documents = $10, status = 'under_review', updated_at = NOW()
+         RETURNING id as verification_id, status, created_at as submitted_at, estimated_review_by`,
+        [
+          listingId,
+          hostId,
+          ownership_type,
+          ward_number,
+          municipality,
+          province,
+          district,
+          property_reg_number,
+          notes,
+          documentsJSON,
+        ],
+      );
+    } else {
+      const existing = await query(
+        "SELECT id FROM kyc_documents WHERE host_id = $1 AND listing_id IS NULL",
+        [hostId],
+      );
+      if (existing.rows.length > 0) {
+        result = await query(
+          `UPDATE kyc_documents 
+           SET documents = $1, status = 'under_review', updated_at = NOW() 
+           WHERE id = $2
+           RETURNING id as verification_id, status, created_at as submitted_at, estimated_review_by`,
+          [documentsJSON, existing.rows[0].id],
+        );
+      } else {
+        result = await query(
+          `INSERT INTO kyc_documents (
+            host_id, user_id, ownership_type, ward_number, municipality, province, district, property_reg_number, 
+            notes, documents, status, estimated_review_by, document_url
+           ) 
+           VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, 'under_review', NOW() + INTERVAL '3 days', '')
+           RETURNING id as verification_id, status, created_at as submitted_at, estimated_review_by`,
+          [
+            hostId,
+            ownership_type,
+            ward_number,
+            municipality,
+            province,
+            district,
+            property_reg_number,
+            notes,
+            documentsJSON,
+          ],
+        );
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -82,6 +120,7 @@ export const submitPropertyVerification = async (req, res) => {
       estimated_review_by: result.rows[0].estimated_review_by,
     });
   } catch (err) {
+    import('fs').then(fs => fs.appendFileSync('error.log', `[POST Submit Error] ${err.stack}\n`));
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -94,10 +133,10 @@ export const getPropertyVerificationStatus = async (req, res) => {
 
     const result = await query(
       `SELECT id as verification_id, listing_id, status, created_at as submitted_at, 
-              reviewed_at, admin_notes, rejection_reason, documents
+              reviewed_at, rejection_reason, documents
        FROM kyc_documents 
-       WHERE listing_id = $1 AND host_id = $2`,
-      [listingId, hostId],
+       WHERE (listing_id = $1 OR (listing_id IS NULL AND $1 IS NULL)) AND host_id = $2`,
+      [listingId || null, hostId],
     );
 
     if (result.rows.length === 0)
@@ -107,6 +146,7 @@ export const getPropertyVerificationStatus = async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    import('fs').then(fs => fs.appendFileSync('error.log', `[GET Status Error] ${err.stack}\n`));
     res.status(500).json({ success: false, message: err.message });
   }
 };
