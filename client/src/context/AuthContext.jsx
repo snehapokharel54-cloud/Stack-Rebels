@@ -1,92 +1,67 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { authAPI, userAPI, setToken, getToken, clearToken, setUnauthorizedHandler } from '../services/api'
 
 const AuthContext = createContext(null)
 const AUTH_STORAGE_KEY = 'grihastha_user'
-const LEGACY_AUTH_STORAGE_KEY = 'nestaway_user'
-const ACCOUNTS_STORAGE_KEY = 'grihastha_accounts'
 
-const normalizeEmail = (email = '') => email.trim().toLowerCase()
-
-// ─── Single source of truth for admin credentials ────────────────────────────
-// These are the ONLY valid admin credentials. Any session claiming admin role
-// that does NOT originate from these credentials will be stripped.
-const ADMIN_EMAIL = 'admin@grihastha.com'
-const ADMIN_PASSWORD = 'admin123'
-
-// ─── Pre-seeded demo accounts (always available, no signup needed) ────────────
-const DEFAULT_ACCOUNTS = [
-  {
-    name: 'Demo Guest',
-    email: 'guest@grihastha.com',
-    password: 'guest123',
-    role: 'user',
-    phone: '9800000001',
-    phoneVerified: true,
-    idVerified: true,
-    propName: '', propLocation: '', propDesc: '',
-    createdAt: '2025-01-01T00:00:00.000Z',
-    badges: ['phone_verified', 'id_verified', 'guest'],
-  },
-  {
-    name: 'Demo Host',
-    email: 'host@grihastha.com',
-    password: 'host123',
-    role: 'vendor',
-    phone: '9800000002',
-    phoneVerified: true,
-    idVerified: true,
-    propName: 'Sunset Villa', propLocation: 'Pokhara', propDesc: 'Lakeside property',
-    createdAt: '2025-01-01T00:00:00.000Z',
-    badges: ['phone_verified', 'id_verified', 'host'],
-  },
-]
-
-/**
- * Validates a user session object. If the session claims to be admin but
- * the email doesn't match the real admin email, we forcibly clear it.
- * This prevents localStorage tampering (e.g. manually setting role: "admin").
- */
-function validateSession(session) {
-  if (!session) return null
-  // If stored session claims admin role but email doesn't match — reject it
-  if (session.role === 'admin' && normalizeEmail(session.email) !== normalizeEmail(ADMIN_EMAIL)) {
-    return null
-  }
-  // Regular users/vendors must not have admin role
-  if (session.role !== 'user' && session.role !== 'vendor' && session.role !== 'admin') {
-    return null
-  }
-  return session
+// Map backend role names to frontend role names
+const mapRoleFromAPI = (role) => {
+  if (role === 'host') return 'vendor'
+  if (role === 'admin') return 'admin'
+  return 'user'
 }
 
-const loadAccounts = () => {
-  try {
-    const stored = localStorage.getItem(ACCOUNTS_STORAGE_KEY)
-    const parsed = stored ? JSON.parse(stored) : []
-    const userAccounts = Array.isArray(parsed) ? parsed.filter(acc => acc.role !== 'admin') : []
+// Map frontend role names to backend role names
+const mapRoleToAPI = (role) => {
+  if (role === 'vendor') return 'host'
+  return role
+}
 
-    // Merge DEFAULT_ACCOUNTS — add them only if not already present
-    const merged = [...userAccounts]
-    for (const def of DEFAULT_ACCOUNTS) {
-      const exists = merged.some(a => normalizeEmail(a.email) === normalizeEmail(def.email))
-      if (!exists) merged.push(def)
-    }
-    return merged
-  } catch {
-    return [...DEFAULT_ACCOUNTS]
+/**
+ * Extracts a normalized user session from the API login/signup response.
+ * Handles the different response shapes from user/host/admin endpoints.
+ */
+function extractUserSession(responseData, role) {
+  const apiUser = responseData.user || responseData.admin
+  const token = responseData.token
+
+  if (!apiUser || !token) return null
+
+  const frontendRole = mapRoleFromAPI(role)
+
+  return {
+    id: apiUser.id,
+    name: apiUser.full_name || apiUser.name || 'User',
+    email: apiUser.email,
+    role: frontendRole,
+    avatar: (apiUser.full_name || apiUser.name || 'U').charAt(0).toUpperCase(),
+    avatar_url: apiUser.avatar_url || null,
+    phone: apiUser.phone || '',
+    phoneVerified: !!apiUser.phone,
+    idVerified: apiUser.is_verified || false,
+    is_host: apiUser.is_host || false,
+    is_superhost: apiUser.is_superhost || false,
+    badges: [
+      ...(apiUser.phone ? ['phone_verified'] : []),
+      ...(apiUser.is_verified ? ['id_verified'] : []),
+      ...(frontendRole === 'vendor' ? ['host'] : []),
+      ...(frontendRole === 'admin' ? ['admin'] : []),
+      ...(frontendRole === 'user' ? ['guest'] : []),
+    ],
+    created_at: apiUser.created_at,
+    token,
   }
 }
 
 export function AuthProvider({ children }) {
-  const [accounts, setAccounts] = useState(loadAccounts)
-
   const [user, setUser] = useState(() => {
     try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY) || localStorage.getItem(LEGACY_AUTH_STORAGE_KEY)
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY)
       if (!raw) return null
       const parsed = JSON.parse(raw)
-      // Run validation to prevent tampered sessions
-      return validateSession(parsed)
+      // Ensure the token is set in the API layer
+      if (parsed?.token) setToken(parsed.token)
+      return parsed
     } catch {
       return null
     }
@@ -94,171 +69,229 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(false)
 
-  // Persist session — but never persist a fraudulent admin session
+  // Register the 401 handler to auto-logout
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      console.warn('[Auth] Received 401 — logging out')
+      setUser(null)
+      clearToken()
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+    })
+  }, [])
+
+  // Persist session to localStorage
   useEffect(() => {
     if (user) {
-      // Final safety: if user.role === admin but email doesn't match, log out
-      if (user.role === 'admin' && normalizeEmail(user.email) !== normalizeEmail(ADMIN_EMAIL)) {
-        localStorage.removeItem(AUTH_STORAGE_KEY)
-        localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
-        setUser(null)
-        return
-      }
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
-      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+      if (user.token) setToken(user.token)
     } else {
       localStorage.removeItem(AUTH_STORAGE_KEY)
-      localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY)
+      clearToken()
     }
   }, [user])
 
-  useEffect(() => {
-    // Never store accounts with admin role
-    const safe = accounts.filter(acc => acc.role !== 'admin')
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(safe))
-  }, [accounts])
+  // ─── Login ──────────────────────────────────────────────────────────────────
+  const login = useCallback(async ({ email, password }) => {
+    setLoading(true)
+    try {
+      let response
 
-  /**
-   * signup — does NOT allow admin role to be registered
-   */
-  const signup = ({
-    name, email, password, role,
-    phone = '', phoneVerified = false,
-    idVerified = false,
-    propName = '', propLocation = '', propDesc = '',
+      if (email.toLowerCase() === 'admin@grihastha.com') {
+        response = await authAPI.adminLogin({ email, password })
+      } else {
+        response = await authAPI.userLogin({ email, password })
+      }
+
+      const { data } = response
+      if (!data.success) {
+        return { ok: false, error: data.message || 'Login failed.' }
+      }
+
+      // Determine the actual role from the response or email
+      const actualRole = email.toLowerCase() === 'admin@grihastha.com' ? 'admin' : (data.data.user?.is_host ? 'host' : 'user')
+      const session = extractUserSession(data.data, actualRole)
+
+      if (!session) {
+        return { ok: false, error: 'Failed to parse login response.' }
+      }
+
+      setUser(session)
+      return { ok: true, user: session }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Login failed.'
+      return { ok: false, error: message }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ─── Signup ─────────────────────────────────────────────────────────────────
+  const signup = useCallback(async ({
+    name, email, password, role = 'user',
+    phone = '',
   }) => {
     setLoading(true)
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const normalizedEmail = normalizeEmail(email)
+    try {
+      const apiRole = mapRoleToAPI(role)
+      const payload = {
+        full_name: name,
+        email,
+        password,
+        phone: phone || undefined,
+      }
 
-        // Block: cannot sign up with admin email or admin role
-        if (normalizedEmail === normalizeEmail(ADMIN_EMAIL)) {
-          setLoading(false)
-          resolve({ ok: false, error: 'This email is reserved. Please use a different email.' })
-          return
-        }
-        if (role === 'admin') {
-          setLoading(false)
-          resolve({ ok: false, error: 'Invalid role.' })
-          return
-        }
+      let response
+      if (apiRole === 'host') {
+        response = await authAPI.hostSignup(payload)
+      } else {
+        response = await authAPI.userSignup(payload)
+      }
 
-        const exists = accounts.some((acc) => normalizeEmail(acc.email) === normalizedEmail)
-        if (exists) {
-          setLoading(false)
-          resolve({ ok: false, error: 'Account already exists with this email.' })
-          return
-        }
+      const { data } = response
+      if (!data.success) {
+        return { ok: false, error: data.message || 'Signup failed.' }
+      }
 
-        const newAccount = {
-          name: name.trim(),
-          email: normalizedEmail,
-          password,
-          // Forcibly clamp role — cannot be admin
-          role: role === 'vendor' ? 'vendor' : 'user',
-          phone,
-          phoneVerified,
-          idVerified,
-          propName,
-          propLocation,
-          propDesc,
-          createdAt: new Date().toISOString(),
-          badges: [
-            ...(phoneVerified ? ['phone_verified'] : []),
-            ...(idVerified ? ['id_verified'] : []),
-            ...(role === 'vendor' ? ['host'] : ['guest']),
-          ],
-        }
+      if (data.data && data.data.signupToken) {
+        return { ok: true, signupToken: data.data.signupToken }
+      }
 
-        setAccounts((prev) => [...prev, newAccount])
-        setLoading(false)
-        resolve({ ok: true, account: newAccount })
-      }, 800)
-    })
-  }
+      const actualRole = apiRole === 'host' ? 'host' : 'user'
+      const session = extractUserSession(data.data, actualRole)
 
-  const login = ({ email, password }) => {
+      if (!session) {
+        return { ok: false, error: 'Failed to parse signup response.' }
+      }
+
+      setUser(session)
+      return { ok: true, user: session, account: session }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Signup failed.'
+      return { ok: false, error: message }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ─── Verify Email ───────────────────────────────────────────────────────────
+  const verifyEmail = useCallback(async ({ email, otp, signupToken, role = 'user' }) => {
     setLoading(true)
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const normalizedEmail = normalizeEmail(email)
-
-        // ── Admin credential check (EXACT match required) ─────────────────
-        if (normalizedEmail === normalizeEmail(ADMIN_EMAIL)) {
-          if (password === ADMIN_PASSWORD) {
-            // Correct admin credentials → grant admin session
-            const adminSession = {
-              name: 'Administrator',
-              email: ADMIN_EMAIL,
-              role: 'admin',
-              avatar: 'A',
-              phone: '',
-              phoneVerified: true,
-              idVerified: true,
-              badges: ['admin'],
-            }
-            setUser(adminSession)
-            setLoading(false)
-            resolve({ ok: true, user: adminSession })
-          } else {
-            // Admin email but wrong password → deny, no hint
-            setLoading(false)
-            resolve({ ok: false, error: 'Invalid email or password.' })
-          }
-          return
+    try {
+      if (signupToken) {
+        const apiRole = mapRoleToAPI(role)
+        const fn = apiRole === 'host' ? authAPI.hostSignupComplete : authAPI.userSignupComplete
+        const { data } = await fn({ signupToken, otp })
+        
+        if (data.success && data.data) {
+          const session = extractUserSession(data.data, apiRole)
+          if (session) setUser(session)
         }
+        
+        return { ok: data.success, message: data.message }
+      }
+      
+      const apiRole = mapRoleToAPI(role)
+      const fn = apiRole === 'host' ? authAPI.hostVerifyEmail : authAPI.userVerifyEmail
+      const { data } = await fn({ email, otp })
+      return { ok: data.success, message: data.message }
+    } catch (error) {
+      return { ok: false, error: error.response?.data?.message || 'Verification failed.' }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-        // ── Regular account lookup ────────────────────────────────────────
-        const account = accounts.find(
-          (acc) =>
-            normalizeEmail(acc.email) === normalizedEmail &&
-            acc.password === password &&
-            acc.role !== 'admin', // extra guard: skip any tampered account with admin role
-        )
+  // ─── Forgot Password ───────────────────────────────────────────────────────
+  const forgotPassword = useCallback(async ({ email, role = 'user' }) => {
+    setLoading(true)
+    try {
+      const apiRole = mapRoleToAPI(role)
+      let fn
+      if (apiRole === 'admin') fn = authAPI.adminLogin // admin uses separate flow
+      else if (apiRole === 'host') fn = authAPI.hostForgotPassword
+      else fn = authAPI.userForgotPassword
 
-        if (!account) {
-          setLoading(false)
-          resolve({ ok: false, error: 'Invalid email or password.' })
-          return
-        }
+      const { data } = await fn({ email })
+      return { ok: data.success, message: data.message }
+    } catch (error) {
+      return { ok: false, error: error.response?.data?.message || 'Request failed.' }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-        const userData = {
-          name: account.name,
-          email: account.email,
-          // Clamp role — regular accounts can only be user or vendor
-          role: account.role === 'vendor' ? 'vendor' : 'user',
-          avatar: account.name?.charAt(0)?.toUpperCase(),
-          phone: account.phone || '',
-          phoneVerified: account.phoneVerified || false,
-          idVerified: account.idVerified || false,
-          badges: (account.badges || []).filter(b => b !== 'admin'),
-          propName: account.propName || '',
-          propLocation: account.propLocation || '',
-        }
+  // ─── Reset Password ────────────────────────────────────────────────────────
+  const resetPassword = useCallback(async ({ token, password, role = 'user' }) => {
+    setLoading(true)
+    try {
+      const apiRole = mapRoleToAPI(role)
+      const fn = apiRole === 'host' ? authAPI.hostResetPassword : authAPI.userResetPassword
+      const { data } = await fn({ token, password })
+      return { ok: data.success, message: data.message }
+    } catch (error) {
+      return { ok: false, error: error.response?.data?.message || 'Reset failed.' }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-        setUser(userData)
-        setLoading(false)
-        resolve({ ok: true, user: userData })
-      }, 800)
-    })
-  }
+  // ─── Refresh user profile from API ──────────────────────────────────────────
+  const refreshProfile = useCallback(async () => {
+    if (!user?.token) return
+    try {
+      const { data } = await userAPI.getProfile()
+      if (data.success && data.data) {
+        setUser(prev => ({
+          ...prev,
+          name: data.data.full_name || prev.name,
+          email: data.data.email || prev.email,
+          phone: data.data.phone || prev.phone,
+          avatar_url: data.data.avatar_url || prev.avatar_url,
+          idVerified: data.data.is_verified || prev.idVerified,
+          is_superhost: data.data.is_superhost || prev.is_superhost,
+        }))
+      }
+    } catch (error) {
+      console.warn('Failed to refresh profile:', error.message)
+    }
+  }, [user?.token])
 
-  const logout = () => {
+  // ─── Logout ─────────────────────────────────────────────────────────────────
+  const logout = useCallback(() => {
     setUser(null)
-  }
+    clearToken()
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    localStorage.removeItem('grihastha_notifications')
+    localStorage.removeItem('grihastha_bookings')
+    localStorage.removeItem('grihastha_wishlist')
+    localStorage.removeItem('grihastha_host_properties')
+    localStorage.removeItem('grihastha_admin_users')
+  }, [])
 
-  const updateUser = (updates) => {
-    // Never allow role upgrade to admin via updateUser
+  // ─── Update user (local state) ──────────────────────────────────────────────
+  const updateUser = useCallback((updates) => {
     const safe = { ...updates }
     if (safe.role === 'admin') delete safe.role
     setUser(prev => prev ? { ...prev, ...safe } : prev)
-  }
+  }, [])
 
   const isAuthenticated = !!user
 
   return (
-    <AuthContext.Provider value={{ user, accounts, signup, login, logout, loading, isAuthenticated, updateUser }}>
+    <AuthContext.Provider value={{
+      user,
+      accounts: [], // backward compat for AdminDashboard (will be replaced in Phase 6 with API)
+      signup,
+      login,
+      logout,
+      loading,
+      isAuthenticated,
+      updateUser,
+      verifyEmail,
+      forgotPassword,
+      resetPassword,
+      refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   )
